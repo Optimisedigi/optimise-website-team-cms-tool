@@ -1,0 +1,7 @@
+/* Hover states from the design's style-hover attributes, plus its global resets, scoped to the map. */
+.ccm-root a { color: oklch(0.24 0.012 85); }
+.ccm-root a:hover { color: oklch(0.5 0.12 255); }
+.ccm-root button { font: inherit; color: inherit; }
+.ccm-root .ccm-hbg:hover { background: oklch(0.97 0.005 85) !important; }
+.ccm-root .ccm-hul:hover { text-decoration: underline; }
+.ccm-root .ccm-hcol:hover { color: oklch(0.45 0.13 255); }

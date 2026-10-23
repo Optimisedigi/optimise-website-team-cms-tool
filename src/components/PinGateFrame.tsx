@@ -36,9 +36,11 @@ interface PinGateFrameProps {
   title?: string;
   subtitle: string;
   children: ReactNode;
+  /** Optional quiet line under the subtitle (e.g. a team sign-in link). */
+  footer?: ReactNode;
 }
 
-export function PinGateFrame({ eyebrow, title, subtitle, children }: PinGateFrameProps): ReactElement {
+export function PinGateFrame({ eyebrow, title, subtitle, children, footer }: PinGateFrameProps): ReactElement {
   return (
     <div
       style={{
@@ -119,6 +121,7 @@ export function PinGateFrame({ eyebrow, title, subtitle, children }: PinGateFram
       >
         {subtitle}
       </p>
+      {footer ? <div style={{ position: "relative", marginTop: 6, textAlign: "center" }}>{footer}</div> : null}
       <PinGateLogo />
     </div>
   );

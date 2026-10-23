@@ -1,0 +1,3414 @@
+{
+ "version": 1,
+ "clientId": "sample",
+ "siteUrl": "https://awaydigitalteams.com",
+ "generatedAt": "2026-10-22T09:00:00.000Z",
+ "crawledAt": "2026-10-22T08:40:00.000Z",
+ "mode": "full",
+ "ai": {
+  "embeddings": "tfidf",
+  "llm": "none"
+ },
+ "topics": [
+  {
+   "k": "core",
+   "name": "Core pages"
+  },
+  {
+   "k": "vietnam",
+   "name": "Vietnam",
+   "primary": true,
+   "description": "Outsourcing teams to Vietnam: why, how, roles, costs."
+  },
+  {
+   "k": "worth-it",
+   "name": "Is it worth it?"
+  },
+  {
+   "k": "comparisons",
+   "name": "Comparisons"
+  },
+  {
+   "k": "cost",
+   "name": "Cost"
+  },
+  {
+   "k": "managing-teams",
+   "name": "Managing teams"
+  },
+  {
+   "k": "service",
+   "name": "Service pages",
+   "agg": true
+  },
+  {
+   "k": "proof",
+   "name": "Case studies & proof",
+   "agg": true
+  },
+  {
+   "k": "offtopic",
+   "name": "Off-topic",
+   "agg": true
+  },
+  {
+   "k": "other",
+   "name": "Other",
+   "agg": true
+  }
+ ],
+ "nodes": [
+  {
+   "id": "/",
+   "g": "core",
+   "t": "/",
+   "in": 8,
+   "out": 28,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/about-us/",
+   "g": "core",
+   "t": "Our Process – Away Digital Teams: Outsourcing Company",
+   "in": 6,
+   "out": 1,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/12-accounting-and-bookkeeping-tasks-you-can-outsource-to-vietnam-right-now/",
+   "g": "vietnam",
+   "t": "Top accounting and bookkeeping tasks you can outsource to Vietnam",
+   "in": 3,
+   "out": 2,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/4-reasons-to-consider-vietnam-for-outsourced-bookkeeping/",
+   "g": "vietnam",
+   "t": "Outsourcing bookkeeping: 4 reasons to consider Vietnam",
+   "in": 0,
+   "out": 4,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/4-steps-to-integrating-an-outsourced-bookkeeper-into-your-business/",
+   "g": "managing-teams",
+   "t": "4 steps to integrating an outsourced bookkeeper into your business -",
+   "in": 2,
+   "out": 3,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/access-to-highly-skilled-talent-why-vietnam-is-a-top-choice-for-outsourcing-in-2026/",
+   "g": "vietnam",
+   "t": "Why Vietnam is the smarter outsourcing move for businesses in 2026",
+   "in": 4,
+   "out": 0,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/advanced-skills-management-remote-teams/",
+   "g": "managing-teams",
+   "t": "Advanced Skills Management: Bridging the Gap in Global Remote Teams",
+   "in": 0,
+   "out": 1,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/agency-retainer-vs-dedicated-marketing-team-which-wins-for-long-term-growth/",
+   "g": "comparisons",
+   "t": "Choosing between an agency retainer and a dedicated marketing team",
+   "in": 0,
+   "out": 0,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/all-you-need-to-know-about-bpo-vietnam/",
+   "g": "vietnam",
+   "t": "BPO Vietnam: All You Need to Know - Away Digital Teams",
+   "in": 2,
+   "out": 4,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/best-bookkeeping-software-streamlining-your-financial-management/",
+   "g": "managing-teams",
+   "t": "Top bookkeeping software for easier financial management",
+   "in": 0,
+   "out": 2,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/bookkeeper-salary-australia-guide/",
+   "g": "cost",
+   "t": "How Much Should You Pay a Bookkeeper in Australia? Full Salary Guide",
+   "in": 0,
+   "out": 1,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/building-ai-ready-offshore-workforce-in-vietnam/",
+   "g": "vietnam",
+   "t": "How to build an AI-ready offshore workforce in Vietnam",
+   "in": 2,
+   "out": 3,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/building-worlds-class-teams-without-borders-in-vietnam/",
+   "g": "vietnam",
+   "t": "Why U.S. companies are tapping into Vietnam’s tech talent",
+   "in": 1,
+   "out": 8,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/choose-the-right-global-model/",
+   "g": "comparisons",
+   "t": "Finding the right model: freelancer, agency, or remote team",
+   "in": 2,
+   "out": 4,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/choosing-the-right-offshore-outsourcing-destination-factors-to-consider/",
+   "g": "vietnam",
+   "t": "Factors to consider when choosing the Offshore Outsourcing Destination",
+   "in": 3,
+   "out": 5,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/cost-comparison-usa-vs-vietnamese-developer-teams/",
+   "g": "cost",
+   "t": "U.S. vs Vietnamese dev teams: Where do the differences lie?",
+   "in": 1,
+   "out": 1,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/cross-cultural-management-101-australia-and-vietnam/",
+   "g": "vietnam",
+   "t": "Australia and Vietnam: Cross Cultural Management",
+   "in": 2,
+   "out": 2,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/dedicated-developers-outsourcing-vs-project-outsourcing/",
+   "g": "comparisons",
+   "t": "Dedicated developers vs project outsourcing: A business guide",
+   "in": 0,
+   "out": 1,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/design-thinking-revolution-vietnam-redefining-offshore-ux/",
+   "g": "vietnam",
+   "t": "Explore the influence of offshore UX in Vietnam",
+   "in": 0,
+   "out": 2,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/do-vietnamese-accountants-and-bookkeepers-understand-the-australian-tax-environment/",
+   "g": "vietnam",
+   "t": "Vietnamese accountants and bookkeepers for Australia",
+   "in": 2,
+   "out": 1,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/english-language-proficiency-and-education-system-in-vietnam/",
+   "g": "vietnam",
+   "t": "Current English Proficiency Levels and English Education in Vietnam",
+   "in": 0,
+   "out": 6,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/exploring-the-pros-and-cons-of-outsourcing-a-strategic-move-for-australian-businesses/",
+   "g": "worth-it",
+   "t": "Exploring the Pros and Cons of Outsourcing in Australia",
+   "in": 0,
+   "out": 2,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/freelancer-turnover-vs-offshore-teams/",
+   "g": "comparisons",
+   "t": "Freelancer turnover vs offshore teams: Why stability wins",
+   "in": 0,
+   "out": 8,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/front-end-developer-salary-in-2026-a-comprehensive-guide/",
+   "g": "cost",
+   "t": "Front End Developer Salary in 2026: What You Can Expect to Earn",
+   "in": 0,
+   "out": 2,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/global-companies-are-thriving-with-vietnam-teams/",
+   "g": "vietnam",
+   "t": "How Vietnam outsourcing companies support business growth",
+   "in": 3,
+   "out": 2,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/global-outsourcing/",
+   "g": "comparisons",
+   "t": "What is global outsourcing? It is key to business growth in 2026",
+   "in": 7,
+   "out": 17,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/how-ai-is-changing-the-future-of-outsourcing/",
+   "g": "worth-it",
+   "t": "How artificial intelligence is reshaping outsourcing",
+   "in": 1,
+   "out": 5,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/how-australian-businesses-are-adapting-to-remote-work-trends/",
+   "g": "managing-teams",
+   "t": "Remote Work in Australia: How Businesses Are Evolving",
+   "in": 0,
+   "out": 3,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/how-outsourcing-a-bookkeeper-from-vietnam-transformed-our-business/",
+   "g": "vietnam",
+   "t": "Outsourcing bookkeeper: How outsourcing transformed a business",
+   "in": 2,
+   "out": 6,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/how-outsourcing-promotes-sustainable-growth/",
+   "g": "worth-it",
+   "t": "Why outsourcing is key to a sustainable business model",
+   "in": 5,
+   "out": 3,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/how-to-keep-data-secure-when-your-dedicated-team-uses-ai/",
+   "g": "managing-teams",
+   "t": "How to keep data secure when dedicated teams use AI",
+   "in": 9,
+   "out": 1,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/how-to-manage-offshore-teams-lessons-from-10-years-of-outsourcing-experience/",
+   "g": "managing-teams",
+   "t": "Managing offshore teams with lessons from 10 years",
+   "in": 4,
+   "out": 1,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/how-to-outsource-successfully/",
+   "g": "worth-it",
+   "t": "How Outsourcing 2.0 helps fix outsourcing failures",
+   "in": 1,
+   "out": 1,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/if-outsourcing-feels-wrong-youre-probably-doing-it-wrong/",
+   "g": "worth-it",
+   "t": "If 'outsourcing' feels wrong, you're probably doing it wrong",
+   "in": 0,
+   "out": 1,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/is-outsourcing-the-right-strategy-for-your-business/",
+   "g": "worth-it",
+   "t": "Should your business consider outsourcing?",
+   "in": 2,
+   "out": 4,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/just-how-good-are-vietnamese-software-developers/",
+   "g": "vietnam",
+   "t": "How are good Vietnamese software developers?",
+   "in": 3,
+   "out": 1,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/leader-wellbeing-offshore-teams/",
+   "g": "managing-teams",
+   "t": "Why leadership matters for offshore team well-being",
+   "in": 2,
+   "out": 2,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/leading-companies-who-outsource-examples/",
+   "g": "worth-it",
+   "t": "Top 5 successful outsourcing case studies",
+   "in": 3,
+   "out": 19,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/master-outsourcing-vietnam/",
+   "g": "vietnam",
+   "t": "The Benefit Of the IT Outsourcing Vietnam 2024",
+   "in": 3,
+   "out": 4,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/new-roi-of-outsourcing/",
+   "g": "worth-it",
+   "t": "Why smart companies choose value over cost in outsourcing",
+   "in": 2,
+   "out": 11,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/nurturing-relationships-with-your-vietnamese-offshore-team/",
+   "g": "vietnam",
+   "t": "How to nurture a successful relationship with your Vietnamese team",
+   "in": 2,
+   "out": 1,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/offshore-collaboration-for-us-teams/",
+   "g": "managing-teams",
+   "t": "Mastering offshore collaboration: A guide for U.S. companies",
+   "in": 4,
+   "out": 2,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/offshore-development-center-meaning/",
+   "g": "comparisons",
+   "t": "What is an offshore development centre and how does it work?",
+   "in": 0,
+   "out": 1,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/offshore-vietnam-24-hour-productivity-cycle/",
+   "g": "vietnam",
+   "t": "What 12 more hours of productivity really looks like",
+   "in": 4,
+   "out": 7,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/offshore-vs-agencies-vs-freelancers-comparison-for-seo-and-aeo/",
+   "g": "comparisons",
+   "t": "Offshore teams vs agencies vs freelancers for SEO and AEO",
+   "in": 3,
+   "out": 1,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/outsource-web-development-to-vietnam-a-complete-guide/",
+   "g": "vietnam",
+   "t": "Best practices for outsourcing web development",
+   "in": 0,
+   "out": 12,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/outsourcing-is-not-a-quick-fix/",
+   "g": "worth-it",
+   "t": "Why outsourcing isn’t just a short-term solution",
+   "in": 1,
+   "out": 11,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/outsourcing-or-subcontracting-for-business/",
+   "g": "comparisons",
+   "t": "Comparing outsourcing and subcontracting: Which is right for your business?",
+   "in": 0,
+   "out": 1,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/outsourcing-to-maximise-roi/",
+   "g": "worth-it",
+   "t": "Boost ROI through skill-based outsourcing strategies",
+   "in": 1,
+   "out": 40,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/outsourcing-trends-for-2025-the-talent-revolution-that-can-transform-your-business/",
+   "g": "worth-it",
+   "t": "Outsourcing trends for 2026: Global workforce gives a competitive edge",
+   "in": 2,
+   "out": 2,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/outsourcing-without-losing-company-culture/",
+   "g": "managing-teams",
+   "t": "Keep your company culture while outsourcing effectively.",
+   "in": 5,
+   "out": 2,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/overcoming-talent-accessibility-issues-in-traditional-locations/",
+   "g": "vietnam",
+   "t": "Struggling to hire? Why businesses are outsourcing to Vietnam",
+   "in": 2,
+   "out": 0,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/peak-season-outsourcing-vietnam-au-us-ecommerce-wholesale/",
+   "g": "vietnam",
+   "t": "AU & U.S. eCommerce win peak season with Vietnam outsourcing",
+   "in": 2,
+   "out": 9,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/pioneers-of-outsourcing-in-vietnam/",
+   "g": "vietnam",
+   "t": "Pioneers of outsourcing in Vietnam and their impact on this industry",
+   "in": 0,
+   "out": 0,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/risks-of-choosing-wrong-outsourcing-partner/",
+   "g": "worth-it",
+   "t": "Risks of a poor outsourcing partner can hurt growth",
+   "in": 4,
+   "out": 1,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/roi-of-outsourcing-2-0/",
+   "g": "worth-it",
+   "t": "ROI in outsourcing 2.0: Real results transforming your business",
+   "in": 3,
+   "out": 0,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/rto-tension-offshore-teams-future-of-work/",
+   "g": "managing-teams",
+   "t": "/blog/rto-tension-offshore-teams-future-of-work/",
+   "in": 0,
+   "out": 2,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/scale-operations-with-offshore-teams/",
+   "g": "managing-teams",
+   "t": "How to scale your operations with offshore support",
+   "in": 0,
+   "out": 12,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/stop-looking-for-unicorn-vietnam-outsourcing/",
+   "g": "comparisons",
+   "t": "Explain \"Unicorn hires\" slow you down and offshore teams win",
+   "in": 1,
+   "out": 14,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/structure-a-dedicated-software-development-team/",
+   "g": "managing-teams",
+   "t": "Your blueprint to a new dedicated development team",
+   "in": 1,
+   "out": 10,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/talent-acquisition-specialist-pay/",
+   "g": "cost",
+   "t": "Talent Acquisition Specialist Salary & Why Top Talent is Worth It",
+   "in": 0,
+   "out": 1,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/the-foundation-of-every-great-offshore-team/",
+   "g": "managing-teams",
+   "t": "How trust and communication drive offshore team quality",
+   "in": 9,
+   "out": 2,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/the-future-of-outsourcing/",
+   "g": "worth-it",
+   "t": "The Future of Outsourcing Unlocking a World of Opportunities",
+   "in": 3,
+   "out": 2,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/the-pros-and-cons-of-outsourcing-data-analytics/",
+   "g": "worth-it",
+   "t": "The pros and cons of data analytics outsourcing",
+   "in": 3,
+   "out": 5,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/the-realities-and-rewards-of-outsourcing-to-vietnam/",
+   "g": "worth-it",
+   "t": "What to know before outsourcing to Vietnam",
+   "in": 0,
+   "out": 2,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/the-rise-of-remote-working-and-what-it-means-for-business-moving-forwards/",
+   "g": "managing-teams",
+   "t": "The Rise Of Remote Working, And What It Means For Business",
+   "in": 1,
+   "out": 4,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/the-secret-to-scalable-growth/",
+   "g": "vietnam",
+   "t": "Why Vietnam is becoming a leading outsourcing destination",
+   "in": 0,
+   "out": 2,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/tips-for-managing-a-remote-team/",
+   "g": "managing-teams",
+   "t": "How to hire and manage a remote employee in Vietnam",
+   "in": 1,
+   "out": 1,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/top-5-benefits-of-outsourcing-to-vietnam/",
+   "g": "vietnam",
+   "t": "Top 5 Benefits of Outsourcing to Vietnam - Away Digital Teams",
+   "in": 5,
+   "out": 0,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/top-software-outsourcing-companies-in-vietnam/",
+   "g": "vietnam",
+   "t": "Top software outsourcing companies in Vietnam",
+   "in": 0,
+   "out": 2,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/top-successful-it-outsourcing-examples/",
+   "g": "worth-it",
+   "t": "Top successful IT outsourcing examples - Away Digital Teams",
+   "in": 1,
+   "out": 12,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/unleashing-growth-how-finance-bpo-empowers-australian-businesses/",
+   "g": "vietnam",
+   "t": "Driving business growth through finance BPO in Australia",
+   "in": 1,
+   "out": 0,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/us-companies-pivot-traditional-hubs-success-vietnam/",
+   "g": "vietnam",
+   "t": "Why U.S. companies offshore to Vietnam: What clients value",
+   "in": 4,
+   "out": 1,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/vietnam-and-ai-talent-a-rising-hub-for-outsourcing-and-innovation/",
+   "g": "vietnam",
+   "t": "Vietnam’s rise in AI talent and innovation outsourcing",
+   "in": 6,
+   "out": 1,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/vietnam-close-skills-gap-and-power-the-digital-economy/",
+   "g": "vietnam",
+   "t": "How Vietnam is bridging the skills gap to boost its digital future",
+   "in": 1,
+   "out": 1,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/vietnam-is-future-of-digital-marketing-outsourcing/",
+   "g": "vietnam",
+   "t": "5 powerful reasons to outsource your digital marketing team to Vietnam",
+   "in": 0,
+   "out": 7,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/vietnam-offshore-team-holiday-business-continuity-benefits/",
+   "g": "vietnam",
+   "t": "Holiday advantage: Vietnam offshore teams support continuity",
+   "in": 0,
+   "out": 5,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/vietnam-outsourcing-us-hiring-pressures/",
+   "g": "vietnam",
+   "t": "Vietnam’s edge in solving U.S. hiring pressures",
+   "in": 1,
+   "out": 6,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/vietnam-retail-global-back-office/",
+   "g": "vietnam",
+   "t": "The next retail edge: Vietnam’s rise as global back offices",
+   "in": 2,
+   "out": 11,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/vietnam-talent-redefining-web-development/",
+   "g": "vietnam",
+   "t": "Vietnam’s tech talent is transforming web development",
+   "in": 1,
+   "out": 1,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/vietnam-tech-talent-boom/",
+   "g": "vietnam",
+   "t": "Vietnam’s tech talent boom: Key insights for U.S. businesses",
+   "in": 2,
+   "out": 6,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/vietnam-the-hotspot-for-it-developers/",
+   "g": "vietnam",
+   "t": "Vietnam's IT developers have become a new hub for the global businesses",
+   "in": 3,
+   "out": 1,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/vietnamese-devops-outsourcing-on-business-agility/",
+   "g": "vietnam",
+   "t": "Vietnamese DevOps Outsourcing on Business Agility - Away Digital Teams",
+   "in": 0,
+   "out": 3,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/vietnams-it-outsourcing-dominance/",
+   "g": "vietnam",
+   "t": "Vietnam's IT Outsourcing Dominance - Away Digital Teams",
+   "in": 2,
+   "out": 3,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/vn-ranking-rise-strategic-advantage/",
+   "g": "vietnam",
+   "t": "Discover why Vietnam's ranking is reshaping global views",
+   "in": 1,
+   "out": 6,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/what-an-extended-workday-really-means-for-your-business/",
+   "g": "managing-teams",
+   "t": "What an extended workday means for global teams",
+   "in": 3,
+   "out": 2,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/what-to-look-for-in-an-outsourced-teams-ai-workflow-before-you-commit/",
+   "g": "managing-teams",
+   "t": "What to look for in an outsourced team's AI workflow before you commit",
+   "in": 0,
+   "out": 2,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/why-convenience-hiring-costs-us-growth/",
+   "g": "comparisons",
+   "t": "The hidden costs of convenient hires in U.S. teams",
+   "in": 3,
+   "out": 10,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/why-outsourcing-has-become-a-growth-decision/",
+   "g": "worth-it",
+   "t": "Why outsourcing is now a strategic growth decision",
+   "in": 0,
+   "out": 0,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/blog/why-your-last-outsourcing-partner-failed/",
+   "g": "worth-it",
+   "t": "Why outsourcing partnerships go wrong and how to fix them",
+   "in": 0,
+   "out": 8,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/build-your-team/",
+   "g": "core",
+   "t": "Build your offshore team in Vietnam with Away Digital Teams",
+   "in": 0,
+   "out": 52,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/contact/",
+   "g": "core",
+   "t": "Contact us – Away Digital Teams",
+   "in": 0,
+   "out": 0,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/cost-comparison-report/",
+   "g": "core",
+   "t": "Australia vs. Vietnam Costs: Get Your Salary Comparison Report",
+   "in": 0,
+   "out": 0,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/ebook/how-we-built-high-retention-teams-in-vietnam/",
+   "g": "vietnam",
+   "t": "The offshore advantage: How we build high-retention teams in Vietnam",
+   "in": 1,
+   "out": 5,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/ebook/the-hidden-cost-of-hiring-locally/",
+   "g": "cost",
+   "t": "The hidden cost of hiring locally: Get the Free eBook",
+   "in": 0,
+   "out": 0,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/ebook/top-outsourcing-locations-around-the-world/",
+   "g": "vietnam",
+   "t": "Top outsourcing locations for global businesses",
+   "in": 3,
+   "out": 0,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/ebook/your-guide-to-integrating-an-outsourced-software-development-team-into-your-business/",
+   "g": "managing-teams",
+   "t": "Avoid Outsourced Software Development Pitfalls: Download the Guide",
+   "in": 2,
+   "out": 0,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/faqs/",
+   "g": "core",
+   "t": "FAQs - Away Digital Teams",
+   "in": 0,
+   "out": 5,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/how-it-works/",
+   "g": "core",
+   "t": "How it works - Away Digital Teams",
+   "in": 0,
+   "out": 0,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/marketplace-operations-manager/",
+   "g": "managing-teams",
+   "t": "Marketplace operations manager recruitment in Vietnam",
+   "in": 0,
+   "out": 0,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/meet-the-vietnam-team/",
+   "g": "core",
+   "t": "Meet The Vietnam Team - Away Digital Teams",
+   "in": 2,
+   "out": 0,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/our-services/supply-chain-management/",
+   "g": "managing-teams",
+   "t": "Build supply chain and vendor management offshore team - Away Digital Teams",
+   "in": 11,
+   "out": 4,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/outsourcing-2-0/",
+   "g": "core",
+   "t": "Outsource top talent in Vietnam - Outsource 2.0",
+   "in": 0,
+   "out": 0,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/report/2026-vietnam-outsourcing-industry-report/",
+   "g": "vietnam",
+   "t": "2026 Vietnam Outsourcing Industry Report: Get the Free eBook",
+   "in": 1,
+   "out": 0,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/testimonials/",
+   "g": "core",
+   "t": "Testimonials | Case Studies | Reviews",
+   "in": 0,
+   "out": 0,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/the-secret-to-scalable-growth-webinar/",
+   "g": "vietnam",
+   "t": "Webinar - Away Digital Teams",
+   "in": 1,
+   "out": 0,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/video/outsourcing-vs-agency/",
+   "g": "comparisons",
+   "t": "Outsourcing vs Agency - What's right for you?",
+   "in": 0,
+   "out": 0,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/video/team-profile-hang-trinh-hr-manager/",
+   "g": "managing-teams",
+   "t": "Team Profile - Hang Trinh, HR Manager",
+   "in": 0,
+   "out": 0,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/video/updates-in-the-vietnamese-market/",
+   "g": "vietnam",
+   "t": "Updates in the Vietnamese Market - Away Digital Teams",
+   "in": 0,
+   "out": 0,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/video/van-to-executive-director-of-the-away-group-vietnam/",
+   "g": "vietnam",
+   "t": "Team Profile - Van To, Executive Director of The Away Group, Vietnam.",
+   "in": 0,
+   "out": 0,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/vietnam-outsourcing-done-right/",
+   "g": "core",
+   "t": "Vietnam Outsourcing Done Right | Away Digital Teams",
+   "in": 0,
+   "out": 0,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/vietnam-outsourcing/",
+   "g": "core",
+   "t": "Top reasons why outsourcing to Vietnam - Away Digital Teams",
+   "in": 0,
+   "out": 33,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "/why-vietnam-outsourcing/",
+   "g": "core",
+   "t": "Top reasons why outsourcing to Vietnam - Away Digital Teams",
+   "in": 0,
+   "out": 33,
+   "status": "live",
+   "fit": 0.7
+  },
+  {
+   "id": "AGG:service",
+   "g": "service",
+   "t": "Service & industry pages (66 pages)",
+   "in": 942,
+   "out": 0,
+   "agg": 66
+  },
+  {
+   "id": "AGG:offtopic",
+   "g": "offtopic",
+   "t": "Off-topic & role blog posts (62 pages)",
+   "in": 43,
+   "out": 0,
+   "agg": 62
+  },
+  {
+   "id": "AGG:proof",
+   "g": "proof",
+   "t": "Case studies, videos & eBooks (24 pages)",
+   "in": 22,
+   "out": 0,
+   "agg": 24
+  },
+  {
+   "id": "AGG:other",
+   "g": "other",
+   "t": "Other pages (5 pages)",
+   "in": 1,
+   "out": 0,
+   "agg": 5
+  },
+  {
+   "id": "cms:9001",
+   "g": "vietnam",
+   "t": "How to hire a remote accountant in Vietnam (draft)",
+   "in": 0,
+   "out": 2,
+   "status": "draft",
+   "cmsId": "9001",
+   "fit": 0.82,
+   "overlaps": [
+    {
+     "k": "cost",
+     "s": 0.41
+    }
+   ]
+  }
+ ],
+ "links": [
+  {
+   "s": 0,
+   "t": 1,
+   "w": 1
+  },
+  {
+   "s": 0,
+   "t": 115,
+   "w": 1
+  },
+  {
+   "s": 0,
+   "t": 113,
+   "w": 26
+  },
+  {
+   "s": 1,
+   "t": 100,
+   "w": 1
+  },
+  {
+   "s": 2,
+   "t": 114,
+   "w": 1
+  },
+  {
+   "s": 2,
+   "t": 113,
+   "w": 1
+  },
+  {
+   "s": 3,
+   "t": 114,
+   "w": 1
+  },
+  {
+   "s": 3,
+   "t": 19,
+   "w": 1
+  },
+  {
+   "s": 3,
+   "t": 93,
+   "w": 1
+  },
+  {
+   "s": 3,
+   "t": 113,
+   "w": 1
+  },
+  {
+   "s": 4,
+   "t": 114,
+   "w": 1
+  },
+  {
+   "s": 4,
+   "t": 28,
+   "w": 1
+  },
+  {
+   "s": 4,
+   "t": 96,
+   "w": 1
+  },
+  {
+   "s": 114,
+   "t": 113,
+   "w": 201
+  },
+  {
+   "s": 114,
+   "t": 95,
+   "w": 2
+  },
+  {
+   "s": 6,
+   "t": 114,
+   "w": 1
+  },
+  {
+   "s": 8,
+   "t": 14,
+   "w": 1
+  },
+  {
+   "s": 8,
+   "t": 62,
+   "w": 1
+  },
+  {
+   "s": 8,
+   "t": 71,
+   "w": 1
+  },
+  {
+   "s": 8,
+   "t": 83,
+   "w": 1
+  },
+  {
+   "s": 114,
+   "t": 1,
+   "w": 2
+  },
+  {
+   "s": 114,
+   "t": 36,
+   "w": 2
+  },
+  {
+   "s": 114,
+   "t": 43,
+   "w": 3
+  },
+  {
+   "s": 114,
+   "t": 0,
+   "w": 4
+  },
+  {
+   "s": 114,
+   "t": 62,
+   "w": 2
+  },
+  {
+   "s": 114,
+   "t": 49,
+   "w": 1
+  },
+  {
+   "s": 114,
+   "t": 34,
+   "w": 1
+  },
+  {
+   "s": 9,
+   "t": 2,
+   "w": 1
+  },
+  {
+   "s": 9,
+   "t": 28,
+   "w": 1
+  },
+  {
+   "s": 10,
+   "t": 113,
+   "w": 1
+  },
+  {
+   "s": 11,
+   "t": 113,
+   "w": 3
+  },
+  {
+   "s": 12,
+   "t": 5,
+   "w": 1
+  },
+  {
+   "s": 12,
+   "t": 113,
+   "w": 7
+  },
+  {
+   "s": 114,
+   "t": 35,
+   "w": 1
+  },
+  {
+   "s": 13,
+   "t": 25,
+   "w": 1
+  },
+  {
+   "s": 13,
+   "t": 29,
+   "w": 1
+  },
+  {
+   "s": 13,
+   "t": 54,
+   "w": 1
+  },
+  {
+   "s": 13,
+   "t": 114,
+   "w": 1
+  },
+  {
+   "s": 14,
+   "t": 34,
+   "w": 1
+  },
+  {
+   "s": 14,
+   "t": 38,
+   "w": 1
+  },
+  {
+   "s": 14,
+   "t": 68,
+   "w": 1
+  },
+  {
+   "s": 14,
+   "t": 95,
+   "w": 1
+  },
+  {
+   "s": 14,
+   "t": 113,
+   "w": 1
+  },
+  {
+   "s": 15,
+   "t": 80,
+   "w": 1
+  },
+  {
+   "s": 16,
+   "t": 24,
+   "w": 1
+  },
+  {
+   "s": 16,
+   "t": 68,
+   "w": 1
+  },
+  {
+   "s": 113,
+   "t": 61,
+   "w": 1
+  },
+  {
+   "s": 17,
+   "t": 59,
+   "w": 1
+  },
+  {
+   "s": 114,
+   "t": 63,
+   "w": 3
+  },
+  {
+   "s": 18,
+   "t": 113,
+   "w": 2
+  },
+  {
+   "s": 19,
+   "t": 115,
+   "w": 1
+  },
+  {
+   "s": 114,
+   "t": 52,
+   "w": 2
+  },
+  {
+   "s": 114,
+   "t": 4,
+   "w": 1
+  },
+  {
+   "s": 114,
+   "t": 38,
+   "w": 1
+  },
+  {
+   "s": 114,
+   "t": 68,
+   "w": 1
+  },
+  {
+   "s": 20,
+   "t": 84,
+   "w": 1
+  },
+  {
+   "s": 20,
+   "t": 113,
+   "w": 5
+  },
+  {
+   "s": 21,
+   "t": 113,
+   "w": 2
+  },
+  {
+   "s": 22,
+   "t": 13,
+   "w": 1
+  },
+  {
+   "s": 22,
+   "t": 100,
+   "w": 1
+  },
+  {
+   "s": 22,
+   "t": 113,
+   "w": 6
+  },
+  {
+   "s": 23,
+   "t": 0,
+   "w": 1
+  },
+  {
+   "s": 23,
+   "t": 114,
+   "w": 1
+  },
+  {
+   "s": 24,
+   "t": 5,
+   "w": 1
+  },
+  {
+   "s": 24,
+   "t": 73,
+   "w": 1
+  },
+  {
+   "s": 114,
+   "t": 31,
+   "w": 1
+  },
+  {
+   "s": 114,
+   "t": 81,
+   "w": 1
+  },
+  {
+   "s": 25,
+   "t": 54,
+   "w": 1
+  },
+  {
+   "s": 25,
+   "t": 61,
+   "w": 1
+  },
+  {
+   "s": 25,
+   "t": 114,
+   "w": 1
+  },
+  {
+   "s": 25,
+   "t": 74,
+   "w": 1
+  },
+  {
+   "s": 25,
+   "t": 85,
+   "w": 1
+  },
+  {
+   "s": 25,
+   "t": 113,
+   "w": 12
+  },
+  {
+   "s": 114,
+   "t": 19,
+   "w": 1
+  },
+  {
+   "s": 26,
+   "t": 25,
+   "w": 1
+  },
+  {
+   "s": 26,
+   "t": 73,
+   "w": 1
+  },
+  {
+   "s": 26,
+   "t": 113,
+   "w": 3
+  },
+  {
+   "s": 27,
+   "t": 1,
+   "w": 1
+  },
+  {
+   "s": 27,
+   "t": 49,
+   "w": 1
+  },
+  {
+   "s": 27,
+   "t": 113,
+   "w": 1
+  },
+  {
+   "s": 28,
+   "t": 2,
+   "w": 1
+  },
+  {
+   "s": 28,
+   "t": 4,
+   "w": 1
+  },
+  {
+   "s": 28,
+   "t": 114,
+   "w": 1
+  },
+  {
+   "s": 28,
+   "t": 113,
+   "w": 3
+  },
+  {
+   "s": 29,
+   "t": 114,
+   "w": 2
+  },
+  {
+   "s": 29,
+   "t": 73,
+   "w": 1
+  },
+  {
+   "s": 30,
+   "t": 11,
+   "w": 1
+  },
+  {
+   "s": 31,
+   "t": 32,
+   "w": 1
+  },
+  {
+   "s": 32,
+   "t": 5,
+   "w": 1
+  },
+  {
+   "s": 33,
+   "t": 31,
+   "w": 1
+  },
+  {
+   "s": 34,
+   "t": 0,
+   "w": 1
+  },
+  {
+   "s": 34,
+   "t": 2,
+   "w": 1
+  },
+  {
+   "s": 34,
+   "t": 14,
+   "w": 1
+  },
+  {
+   "s": 34,
+   "t": 35,
+   "w": 1
+  },
+  {
+   "s": 114,
+   "t": 25,
+   "w": 1
+  },
+  {
+   "s": 114,
+   "t": 37,
+   "w": 1
+  },
+  {
+   "s": 114,
+   "t": 39,
+   "w": 1
+  },
+  {
+   "s": 35,
+   "t": 96,
+   "w": 1
+  },
+  {
+   "s": 36,
+   "t": 16,
+   "w": 1
+  },
+  {
+   "s": 36,
+   "t": 61,
+   "w": 1
+  },
+  {
+   "s": 37,
+   "t": 25,
+   "w": 1
+  },
+  {
+   "s": 37,
+   "t": 46,
+   "w": 1
+  },
+  {
+   "s": 37,
+   "t": 48,
+   "w": 1
+  },
+  {
+   "s": 37,
+   "t": 113,
+   "w": 16
+  },
+  {
+   "s": 114,
+   "t": 103,
+   "w": 1
+  },
+  {
+   "s": 38,
+   "t": 14,
+   "w": 1
+  },
+  {
+   "s": 38,
+   "t": 114,
+   "w": 1
+  },
+  {
+   "s": 38,
+   "t": 81,
+   "w": 1
+  },
+  {
+   "s": 38,
+   "t": 83,
+   "w": 1
+  },
+  {
+   "s": 39,
+   "t": 50,
+   "w": 1
+  },
+  {
+   "s": 39,
+   "t": 55,
+   "w": 1
+  },
+  {
+   "s": 39,
+   "t": 114,
+   "w": 1
+  },
+  {
+   "s": 39,
+   "t": 113,
+   "w": 8
+  },
+  {
+   "s": 40,
+   "t": 0,
+   "w": 1
+  },
+  {
+   "s": 41,
+   "t": 16,
+   "w": 1
+  },
+  {
+   "s": 41,
+   "t": 37,
+   "w": 1
+  },
+  {
+   "s": 42,
+   "t": 13,
+   "w": 1
+  },
+  {
+   "s": 114,
+   "t": 15,
+   "w": 1
+  },
+  {
+   "s": 43,
+   "t": 50,
+   "w": 1
+  },
+  {
+   "s": 43,
+   "t": 72,
+   "w": 1
+  },
+  {
+   "s": 43,
+   "t": 85,
+   "w": 1
+  },
+  {
+   "s": 43,
+   "t": 113,
+   "w": 4
+  },
+  {
+   "s": 44,
+   "t": 114,
+   "w": 1
+  },
+  {
+   "s": 45,
+   "t": 79,
+   "w": 1
+  },
+  {
+   "s": 45,
+   "t": 113,
+   "w": 11
+  },
+  {
+   "s": 46,
+   "t": 50,
+   "w": 1
+  },
+  {
+   "s": 46,
+   "t": 115,
+   "w": 1
+  },
+  {
+   "s": 46,
+   "t": 113,
+   "w": 9
+  },
+  {
+   "s": 47,
+   "t": 1,
+   "w": 1
+  },
+  {
+   "s": 48,
+   "t": 55,
+   "w": 1
+  },
+  {
+   "s": 48,
+   "t": 113,
+   "w": 39
+  },
+  {
+   "s": 49,
+   "t": 25,
+   "w": 1
+  },
+  {
+   "s": 49,
+   "t": 73,
+   "w": 1
+  },
+  {
+   "s": 50,
+   "t": 40,
+   "w": 1
+  },
+  {
+   "s": 50,
+   "t": 61,
+   "w": 1
+  },
+  {
+   "s": 52,
+   "t": 114,
+   "w": 1
+  },
+  {
+   "s": 52,
+   "t": 113,
+   "w": 8
+  },
+  {
+   "s": 114,
+   "t": 78,
+   "w": 2
+  },
+  {
+   "s": 54,
+   "t": 55,
+   "w": 1
+  },
+  {
+   "s": 56,
+   "t": 41,
+   "w": 1
+  },
+  {
+   "s": 56,
+   "t": 61,
+   "w": 1
+  },
+  {
+   "s": 57,
+   "t": 77,
+   "w": 1
+  },
+  {
+   "s": 57,
+   "t": 113,
+   "w": 11
+  },
+  {
+   "s": 114,
+   "t": 41,
+   "w": 2
+  },
+  {
+   "s": 113,
+   "t": 81,
+   "w": 1
+  },
+  {
+   "s": 58,
+   "t": 41,
+   "w": 1
+  },
+  {
+   "s": 58,
+   "t": 113,
+   "w": 13
+  },
+  {
+   "s": 59,
+   "t": 61,
+   "w": 1
+  },
+  {
+   "s": 59,
+   "t": 80,
+   "w": 1
+  },
+  {
+   "s": 59,
+   "t": 113,
+   "w": 8
+  },
+  {
+   "s": 60,
+   "t": 114,
+   "w": 1
+  },
+  {
+   "s": 61,
+   "t": 31,
+   "w": 1
+  },
+  {
+   "s": 61,
+   "t": 50,
+   "w": 1
+  },
+  {
+   "s": 62,
+   "t": 8,
+   "w": 1
+  },
+  {
+   "s": 62,
+   "t": 65,
+   "w": 1
+  },
+  {
+   "s": 63,
+   "t": 114,
+   "w": 2
+  },
+  {
+   "s": 63,
+   "t": 37,
+   "w": 1
+  },
+  {
+   "s": 63,
+   "t": 54,
+   "w": 1
+  },
+  {
+   "s": 63,
+   "t": 113,
+   "w": 1
+  },
+  {
+   "s": 64,
+   "t": 114,
+   "w": 1
+  },
+  {
+   "s": 64,
+   "t": 68,
+   "w": 1
+  },
+  {
+   "s": 65,
+   "t": 29,
+   "w": 1
+  },
+  {
+   "s": 65,
+   "t": 39,
+   "w": 1
+  },
+  {
+   "s": 65,
+   "t": 50,
+   "w": 1
+  },
+  {
+   "s": 65,
+   "t": 67,
+   "w": 1
+  },
+  {
+   "s": 66,
+   "t": 29,
+   "w": 1
+  },
+  {
+   "s": 66,
+   "t": 105,
+   "w": 1
+  },
+  {
+   "s": 67,
+   "t": 87,
+   "w": 1
+  },
+  {
+   "s": 114,
+   "t": 101,
+   "w": 1
+  },
+  {
+   "s": 114,
+   "t": 26,
+   "w": 1
+  },
+  {
+   "s": 114,
+   "t": 73,
+   "w": 1
+  },
+  {
+   "s": 69,
+   "t": 0,
+   "w": 1
+  },
+  {
+   "s": 69,
+   "t": 114,
+   "w": 1
+  },
+  {
+   "s": 70,
+   "t": 113,
+   "w": 12
+  },
+  {
+   "s": 72,
+   "t": 114,
+   "w": 1
+  },
+  {
+   "s": 73,
+   "t": 113,
+   "w": 1
+  },
+  {
+   "s": 74,
+   "t": 29,
+   "w": 1
+  },
+  {
+   "s": 75,
+   "t": 24,
+   "w": 1
+  },
+  {
+   "s": 75,
+   "t": 51,
+   "w": 1
+  },
+  {
+   "s": 75,
+   "t": 113,
+   "w": 5
+  },
+  {
+   "s": 76,
+   "t": 43,
+   "w": 1
+  },
+  {
+   "s": 76,
+   "t": 61,
+   "w": 1
+  },
+  {
+   "s": 76,
+   "t": 113,
+   "w": 3
+  },
+  {
+   "s": 77,
+   "t": 87,
+   "w": 1
+  },
+  {
+   "s": 77,
+   "t": 113,
+   "w": 5
+  },
+  {
+   "s": 78,
+   "t": 72,
+   "w": 1
+  },
+  {
+   "s": 78,
+   "t": 113,
+   "w": 10
+  },
+  {
+   "s": 79,
+   "t": 70,
+   "w": 1
+  },
+  {
+   "s": 80,
+   "t": 12,
+   "w": 1
+  },
+  {
+   "s": 80,
+   "t": 113,
+   "w": 5
+  },
+  {
+   "s": 81,
+   "t": 35,
+   "w": 1
+  },
+  {
+   "s": 82,
+   "t": 114,
+   "w": 1
+  },
+  {
+   "s": 82,
+   "t": 113,
+   "w": 2
+  },
+  {
+   "s": 83,
+   "t": 8,
+   "w": 1
+  },
+  {
+   "s": 83,
+   "t": 38,
+   "w": 1
+  },
+  {
+   "s": 83,
+   "t": 68,
+   "w": 1
+  },
+  {
+   "s": 84,
+   "t": 72,
+   "w": 1
+  },
+  {
+   "s": 84,
+   "t": 113,
+   "w": 5
+  },
+  {
+   "s": 85,
+   "t": 25,
+   "w": 1
+  },
+  {
+   "s": 85,
+   "t": 87,
+   "w": 1
+  },
+  {
+   "s": 114,
+   "t": 11,
+   "w": 1
+  },
+  {
+   "s": 114,
+   "t": 24,
+   "w": 1
+  },
+  {
+   "s": 86,
+   "t": 113,
+   "w": 1
+  },
+  {
+   "s": 86,
+   "t": 114,
+   "w": 1
+  },
+  {
+   "s": 114,
+   "t": 29,
+   "w": 1
+  },
+  {
+   "s": 114,
+   "t": 51,
+   "w": 1
+  },
+  {
+   "s": 87,
+   "t": 58,
+   "w": 1
+  },
+  {
+   "s": 87,
+   "t": 61,
+   "w": 1
+  },
+  {
+   "s": 87,
+   "t": 73,
+   "w": 1
+  },
+  {
+   "s": 87,
+   "t": 113,
+   "w": 7
+  },
+  {
+   "s": 114,
+   "t": 40,
+   "w": 1
+  },
+  {
+   "s": 114,
+   "t": 5,
+   "w": 1
+  },
+  {
+   "s": 114,
+   "t": 54,
+   "w": 1
+  },
+  {
+   "s": 114,
+   "t": 72,
+   "w": 1
+  },
+  {
+   "s": 89,
+   "t": 25,
+   "w": 1
+  },
+  {
+   "s": 89,
+   "t": 31,
+   "w": 1
+  },
+  {
+   "s": 89,
+   "t": 61,
+   "w": 1
+  },
+  {
+   "s": 89,
+   "t": 113,
+   "w": 5
+  },
+  {
+   "s": 90,
+   "t": 113,
+   "w": 52
+  },
+  {
+   "s": 115,
+   "t": 113,
+   "w": 24
+  },
+  {
+   "s": 93,
+   "t": 113,
+   "w": 5
+  },
+  {
+   "s": 113,
+   "t": 30,
+   "w": 9
+  },
+  {
+   "s": 113,
+   "t": 115,
+   "w": 19
+  },
+  {
+   "s": 113,
+   "t": 101,
+   "w": 8
+  },
+  {
+   "s": 97,
+   "t": 114,
+   "w": 1
+  },
+  {
+   "s": 97,
+   "t": 113,
+   "w": 4
+  },
+  {
+   "s": 113,
+   "t": 116,
+   "w": 1
+  },
+  {
+   "s": 116,
+   "t": 1,
+   "w": 1
+  },
+  {
+   "s": 113,
+   "t": 44,
+   "w": 1
+  },
+  {
+   "s": 113,
+   "t": 85,
+   "w": 1
+  },
+  {
+   "s": 101,
+   "t": 113,
+   "w": 4
+  },
+  {
+   "s": 116,
+   "t": 114,
+   "w": 1
+  },
+  {
+   "s": 116,
+   "t": 113,
+   "w": 5
+  },
+  {
+   "s": 111,
+   "t": 44,
+   "w": 1
+  },
+  {
+   "s": 111,
+   "t": 113,
+   "w": 31
+  },
+  {
+   "s": 111,
+   "t": 101,
+   "w": 1
+  },
+  {
+   "s": 112,
+   "t": 44,
+   "w": 1
+  },
+  {
+   "s": 112,
+   "t": 113,
+   "w": 31
+  },
+  {
+   "s": 112,
+   "t": 101,
+   "w": 1
+  },
+  {
+   "s": 117,
+   "t": 2,
+   "w": 1
+  },
+  {
+   "s": 117,
+   "t": 10,
+   "w": 1
+  }
+ ],
+ "opportunities": [
+  {
+   "key": "/blog/all-you-need-to-know-about-bpo-vietnam/>/blog/the-realities-and-rewards-of-outsourcing-to-vietnam/",
+   "s": 8,
+   "t": 64,
+   "sim": 0.667,
+   "terms": [
+    "vietnam",
+    "know"
+   ],
+   "anchor": "vietnam know",
+   "snippet": "…when you weigh vietnam know, it helps to compare the options side by side…",
+   "why": "Both pages cover vietnam and know; the source is the stronger page."
+  },
+  {
+   "key": "/blog/building-worlds-class-teams-without-borders-in-vietnam/>/blog/vietnam-talent-redefining-web-development/",
+   "s": 12,
+   "t": 79,
+   "sim": 0.6,
+   "terms": [
+    "vietnam",
+    "tech",
+    "talent"
+   ],
+   "anchor": "vietnam tech",
+   "snippet": "…when you weigh vietnam tech, it helps to compare the options side by side…",
+   "why": "Both pages cover vietnam and tech; the source is the stronger page."
+  },
+  {
+   "key": "/blog/tips-for-managing-a-remote-team/>cms:9001",
+   "s": 67,
+   "t": 117,
+   "sim": 0.6,
+   "terms": [
+    "hire",
+    "remote",
+    "vietnam"
+   ],
+   "anchor": "hire remote",
+   "snippet": "…when you weigh hire remote, it helps to compare the options side by side…",
+   "why": "Both pages cover hire and remote; the source is the stronger page."
+  },
+  {
+   "key": "/blog/building-ai-ready-offshore-workforce-in-vietnam/>/ebook/how-we-built-high-retention-teams-in-vietnam/",
+   "s": 11,
+   "t": 93,
+   "sim": 0.548,
+   "terms": [
+    "build",
+    "offshore",
+    "vietnam"
+   ],
+   "anchor": "build offshore",
+   "snippet": "…when you weigh build offshore, it helps to compare the options side by side…",
+   "why": "Both pages cover build and offshore; the source is the stronger page."
+  },
+  {
+   "key": "/blog/vietnam-tech-talent-boom/>/blog/vietnam-talent-redefining-web-development/",
+   "s": 80,
+   "t": 79,
+   "sim": 0.548,
+   "terms": [
+    "vietnam",
+    "tech",
+    "talent"
+   ],
+   "anchor": "vietnam tech",
+   "snippet": "…when you weigh vietnam tech, it helps to compare the options side by side…",
+   "why": "Both pages cover vietnam and tech; the source is the stronger page."
+  },
+  {
+   "key": "/blog/building-worlds-class-teams-without-borders-in-vietnam/>/blog/top-software-outsourcing-companies-in-vietnam/",
+   "s": 12,
+   "t": 69,
+   "sim": 0.516,
+   "terms": [
+    "companies",
+    "vietnam"
+   ],
+   "anchor": "companies vietnam",
+   "snippet": "…when you weigh companies vietnam, it helps to compare the options side by side…",
+   "why": "Both pages cover companies and vietnam; the source is the stronger page."
+  },
+  {
+   "key": "/blog/global-companies-are-thriving-with-vietnam-teams/>/blog/top-software-outsourcing-companies-in-vietnam/",
+   "s": 24,
+   "t": 69,
+   "sim": 0.516,
+   "terms": [
+    "vietnam",
+    "companies"
+   ],
+   "anchor": "vietnam companies",
+   "snippet": "…when you weigh vietnam companies, it helps to compare the options side by side…",
+   "why": "Both pages cover vietnam and companies; the source is the stronger page."
+  },
+  {
+   "key": "/blog/us-companies-pivot-traditional-hubs-success-vietnam/>/blog/top-software-outsourcing-companies-in-vietnam/",
+   "s": 72,
+   "t": 69,
+   "sim": 0.516,
+   "terms": [
+    "companies",
+    "vietnam"
+   ],
+   "anchor": "companies vietnam",
+   "snippet": "…when you weigh companies vietnam, it helps to compare the options side by side…",
+   "why": "Both pages cover companies and vietnam; the source is the stronger page."
+  },
+  {
+   "key": "/blog/the-pros-and-cons-of-outsourcing-data-analytics/>/blog/exploring-the-pros-and-cons-of-outsourcing-a-strategic-move-for-australian-businesses/",
+   "s": 63,
+   "t": 21,
+   "sim": 0.5,
+   "terms": [
+    "pros",
+    "cons"
+   ],
+   "anchor": "pros cons",
+   "snippet": "…when you weigh pros cons, it helps to compare the options side by side…",
+   "why": "Both pages cover pros and cons; the source is the stronger page."
+  },
+  {
+   "key": "/ebook/how-we-built-high-retention-teams-in-vietnam/>/blog/vietnam-offshore-team-holiday-business-continuity-benefits/",
+   "s": 93,
+   "t": 76,
+   "sim": 0.5,
+   "terms": [
+    "advantage",
+    "vietnam",
+    "offshore"
+   ],
+   "anchor": "advantage vietnam",
+   "snippet": "…when you weigh advantage vietnam, it helps to compare the options side by side…",
+   "why": "Both pages cover advantage and vietnam; the source is the stronger page."
+  },
+  {
+   "key": "/blog/vietnam-the-hotspot-for-it-developers/>/ebook/top-outsourcing-locations-around-the-world/",
+   "s": 81,
+   "t": 95,
+   "sim": 0.471,
+   "terms": [
+    "global",
+    "businesses"
+   ],
+   "anchor": "global businesses",
+   "snippet": "…when you weigh global businesses, it helps to compare the options side by side…",
+   "why": "Both pages cover global and businesses; the source is the stronger page."
+  },
+  {
+   "key": "/blog/12-accounting-and-bookkeeping-tasks-you-can-outsource-to-vietnam-right-now/>/blog/4-reasons-to-consider-vietnam-for-outsourced-bookkeeping/",
+   "s": 2,
+   "t": 3,
+   "sim": 0.447,
+   "terms": [
+    "bookkeeping",
+    "vietnam"
+   ],
+   "anchor": "bookkeeping vietnam",
+   "snippet": "…when you weigh bookkeeping vietnam, it helps to compare the options side by side…",
+   "why": "Both pages cover bookkeeping and vietnam; the source is the stronger page."
+  },
+  {
+   "key": "/blog/access-to-highly-skilled-talent-why-vietnam-is-a-top-choice-for-outsourcing-in-2026/>/blog/overcoming-talent-accessibility-issues-in-traditional-locations/",
+   "s": 5,
+   "t": 51,
+   "sim": 0.447,
+   "terms": [
+    "vietnam",
+    "businesses"
+   ],
+   "anchor": "vietnam businesses",
+   "snippet": "…when you weigh vietnam businesses, it helps to compare the options side by side…",
+   "why": "Both pages cover vietnam and businesses; the source is the stronger page."
+  },
+  {
+   "key": "/blog/building-ai-ready-offshore-workforce-in-vietnam/>/blog/design-thinking-revolution-vietnam-redefining-offshore-ux/",
+   "s": 11,
+   "t": 18,
+   "sim": 0.447,
+   "terms": [
+    "offshore",
+    "vietnam"
+   ],
+   "anchor": "offshore vietnam",
+   "snippet": "…when you weigh offshore vietnam, it helps to compare the options side by side…",
+   "why": "Both pages cover offshore and vietnam; the source is the stronger page."
+  },
+  {
+   "key": "/blog/vietnam-and-ai-talent-a-rising-hub-for-outsourcing-and-innovation/>/blog/building-worlds-class-teams-without-borders-in-vietnam/",
+   "s": 73,
+   "t": 12,
+   "sim": 0.447,
+   "terms": [
+    "vietnam",
+    "talent"
+   ],
+   "anchor": "vietnam talent",
+   "snippet": "…when you weigh vietnam talent, it helps to compare the options side by side…",
+   "why": "Both pages cover vietnam and talent; the source is the stronger page."
+  },
+  {
+   "key": "/blog/us-companies-pivot-traditional-hubs-success-vietnam/>/blog/design-thinking-revolution-vietnam-redefining-offshore-ux/",
+   "s": 72,
+   "t": 18,
+   "sim": 0.447,
+   "terms": [
+    "offshore",
+    "vietnam"
+   ],
+   "anchor": "offshore vietnam",
+   "snippet": "…when you weigh offshore vietnam, it helps to compare the options side by side…",
+   "why": "Both pages cover offshore and vietnam; the source is the stronger page."
+  },
+  {
+   "key": "/blog/global-outsourcing/>/blog/global-companies-are-thriving-with-vietnam-teams/",
+   "s": 25,
+   "t": 24,
+   "sim": 0.447,
+   "terms": [
+    "business",
+    "growth"
+   ],
+   "anchor": "business growth",
+   "snippet": "…when you weigh business growth, it helps to compare the options side by side…",
+   "why": "Both pages cover business and growth; the source is the stronger page."
+  },
+  {
+   "key": "/blog/offshore-collaboration-for-us-teams/>/blog/us-companies-pivot-traditional-hubs-success-vietnam/",
+   "s": 41,
+   "t": 72,
+   "sim": 0.447,
+   "terms": [
+    "offshore",
+    "companies"
+   ],
+   "anchor": "offshore companies",
+   "snippet": "…when you weigh offshore companies, it helps to compare the options side by side…",
+   "why": "Both pages cover offshore and companies; the source is the stronger page."
+  },
+  {
+   "key": "/blog/offshore-development-center-meaning/>/blog/rto-tension-offshore-teams-future-of-work/",
+   "s": 42,
+   "t": 56,
+   "sim": 0.447,
+   "terms": [
+    "offshore",
+    "work"
+   ],
+   "anchor": "offshore work",
+   "snippet": "…when you weigh offshore work, it helps to compare the options side by side…",
+   "why": "Both pages cover offshore and work; the source is the stronger page."
+  },
+  {
+   "key": "/blog/overcoming-talent-accessibility-issues-in-traditional-locations/>/blog/tips-for-managing-a-remote-team/",
+   "s": 51,
+   "t": 67,
+   "sim": 0.447,
+   "terms": [
+    "hire",
+    "vietnam"
+   ],
+   "anchor": "hire vietnam",
+   "snippet": "…when you weigh hire vietnam, it helps to compare the options side by side…",
+   "why": "Both pages cover hire and vietnam; the source is the stronger page."
+  },
+  {
+   "key": "/blog/overcoming-talent-accessibility-issues-in-traditional-locations/>cms:9001",
+   "s": 51,
+   "t": 117,
+   "sim": 0.447,
+   "terms": [
+    "hire",
+    "vietnam"
+   ],
+   "anchor": "hire vietnam",
+   "snippet": "…when you weigh hire vietnam, it helps to compare the options side by side…",
+   "why": "Both pages cover hire and vietnam; the source is the stronger page."
+  },
+  {
+   "key": "/blog/vietnam-and-ai-talent-a-rising-hub-for-outsourcing-and-innovation/>/blog/vietnam-talent-redefining-web-development/",
+   "s": 73,
+   "t": 79,
+   "sim": 0.447,
+   "terms": [
+    "vietnam",
+    "talent"
+   ],
+   "anchor": "vietnam talent",
+   "snippet": "…when you weigh vietnam talent, it helps to compare the options side by side…",
+   "why": "Both pages cover vietnam and talent; the source is the stronger page."
+  },
+  {
+   "key": "/blog/4-reasons-to-consider-vietnam-for-outsourced-bookkeeping/>/blog/vietnam-is-future-of-digital-marketing-outsourcing/",
+   "s": 3,
+   "t": 75,
+   "sim": 0.408,
+   "terms": [
+    "reasons",
+    "vietnam"
+   ],
+   "anchor": "reasons vietnam",
+   "snippet": "…when you weigh reasons vietnam, it helps to compare the options side by side…",
+   "why": "Both pages cover reasons and vietnam; the source is the stronger page."
+  },
+  {
+   "key": "/blog/design-thinking-revolution-vietnam-redefining-offshore-ux/>/blog/vietnam-offshore-team-holiday-business-continuity-benefits/",
+   "s": 18,
+   "t": 76,
+   "sim": 0.408,
+   "terms": [
+    "offshore",
+    "vietnam"
+   ],
+   "anchor": "offshore vietnam",
+   "snippet": "…when you weigh offshore vietnam, it helps to compare the options side by side…",
+   "why": "Both pages cover offshore and vietnam; the source is the stronger page."
+  },
+  {
+   "key": "/ebook/how-we-built-high-retention-teams-in-vietnam/>/blog/design-thinking-revolution-vietnam-redefining-offshore-ux/",
+   "s": 93,
+   "t": 18,
+   "sim": 0.408,
+   "terms": [
+    "offshore",
+    "vietnam"
+   ],
+   "anchor": "offshore vietnam",
+   "snippet": "…when you weigh offshore vietnam, it helps to compare the options side by side…",
+   "why": "Both pages cover offshore and vietnam; the source is the stronger page."
+  },
+  {
+   "key": "/blog/global-outsourcing/>/blog/unleashing-growth-how-finance-bpo-empowers-australian-businesses/",
+   "s": 25,
+   "t": 71,
+   "sim": 0.408,
+   "terms": [
+    "business",
+    "growth"
+   ],
+   "anchor": "business growth",
+   "snippet": "…when you weigh business growth, it helps to compare the options side by side…",
+   "why": "Both pages cover business and growth; the source is the stronger page."
+  },
+  {
+   "key": "/blog/overcoming-talent-accessibility-issues-in-traditional-locations/>/blog/vietnam-tech-talent-boom/",
+   "s": 51,
+   "t": 80,
+   "sim": 0.408,
+   "terms": [
+    "businesses",
+    "vietnam"
+   ],
+   "anchor": "businesses vietnam",
+   "snippet": "…when you weigh businesses vietnam, it helps to compare the options side by side…",
+   "why": "Both pages cover businesses and vietnam; the source is the stronger page."
+  },
+  {
+   "key": "/blog/vietnam-the-hotspot-for-it-developers/>/blog/overcoming-talent-accessibility-issues-in-traditional-locations/",
+   "s": 81,
+   "t": 51,
+   "sim": 0.408,
+   "terms": [
+    "businesses",
+    "vietnam"
+   ],
+   "anchor": "businesses vietnam",
+   "snippet": "…when you weigh businesses vietnam, it helps to compare the options side by side…",
+   "why": "Both pages cover businesses and vietnam; the source is the stronger page."
+  },
+  {
+   "key": "/blog/scale-operations-with-offshore-teams/>/blog/vietnam-offshore-team-holiday-business-continuity-benefits/",
+   "s": 57,
+   "t": 76,
+   "sim": 0.408,
+   "terms": [
+    "offshore",
+    "support"
+   ],
+   "anchor": "offshore support",
+   "snippet": "…when you weigh offshore support, it helps to compare the options side by side…",
+   "why": "Both pages cover offshore and support; the source is the stronger page."
+  },
+  {
+   "key": "/blog/vietnam-and-ai-talent-a-rising-hub-for-outsourcing-and-innovation/>/blog/vietnam-tech-talent-boom/",
+   "s": 73,
+   "t": 80,
+   "sim": 0.408,
+   "terms": [
+    "vietnam",
+    "talent"
+   ],
+   "anchor": "vietnam talent",
+   "snippet": "…when you weigh vietnam talent, it helps to compare the options side by side…",
+   "why": "Both pages cover vietnam and talent; the source is the stronger page."
+  },
+  {
+   "key": "/blog/us-companies-pivot-traditional-hubs-success-vietnam/>/blog/building-ai-ready-offshore-workforce-in-vietnam/",
+   "s": 72,
+   "t": 11,
+   "sim": 0.4,
+   "terms": [
+    "offshore",
+    "vietnam"
+   ],
+   "anchor": "offshore vietnam",
+   "snippet": "…when you weigh offshore vietnam, it helps to compare the options side by side…",
+   "why": "Both pages cover offshore and vietnam; the source is the stronger page."
+  },
+  {
+   "key": "/blog/global-companies-are-thriving-with-vietnam-teams/>/blog/building-worlds-class-teams-without-borders-in-vietnam/",
+   "s": 24,
+   "t": 12,
+   "sim": 0.4,
+   "terms": [
+    "companies",
+    "vietnam"
+   ],
+   "anchor": "companies vietnam",
+   "snippet": "…when you weigh companies vietnam, it helps to compare the options side by side…",
+   "why": "Both pages cover companies and vietnam; the source is the stronger page."
+  },
+  {
+   "key": "/blog/us-companies-pivot-traditional-hubs-success-vietnam/>/blog/building-worlds-class-teams-without-borders-in-vietnam/",
+   "s": 72,
+   "t": 12,
+   "sim": 0.4,
+   "terms": [
+    "companies",
+    "vietnam"
+   ],
+   "anchor": "companies vietnam",
+   "snippet": "…when you weigh companies vietnam, it helps to compare the options side by side…",
+   "why": "Both pages cover companies and vietnam; the source is the stronger page."
+  },
+  {
+   "key": "/blog/us-companies-pivot-traditional-hubs-success-vietnam/>/blog/global-companies-are-thriving-with-vietnam-teams/",
+   "s": 72,
+   "t": 24,
+   "sim": 0.4,
+   "terms": [
+    "vietnam",
+    "companies"
+   ],
+   "anchor": "vietnam companies",
+   "snippet": "…when you weigh vietnam companies, it helps to compare the options side by side…",
+   "why": "Both pages cover vietnam and companies; the source is the stronger page."
+  },
+  {
+   "key": "/blog/structure-a-dedicated-software-development-team/>/blog/agency-retainer-vs-dedicated-marketing-team-which-wins-for-long-term-growth/",
+   "s": 59,
+   "t": 7,
+   "sim": 0.378,
+   "terms": [
+    "dedicated",
+    "team"
+   ],
+   "anchor": "dedicated team",
+   "snippet": "…when you weigh dedicated team, it helps to compare the options side by side…",
+   "why": "Both pages cover dedicated and team; the source is the stronger page."
+  },
+  {
+   "key": "/blog/12-accounting-and-bookkeeping-tasks-you-can-outsource-to-vietnam-right-now/>/blog/vietnam-is-future-of-digital-marketing-outsourcing/",
+   "s": 2,
+   "t": 75,
+   "sim": 0.365,
+   "terms": [
+    "outsource",
+    "vietnam"
+   ],
+   "anchor": "outsource vietnam",
+   "snippet": "…when you weigh outsource vietnam, it helps to compare the options side by side…",
+   "why": "Both pages cover outsource and vietnam; the source is the stronger page."
+  },
+  {
+   "key": "/blog/access-to-highly-skilled-talent-why-vietnam-is-a-top-choice-for-outsourcing-in-2026/>/blog/vietnam-tech-talent-boom/",
+   "s": 5,
+   "t": 80,
+   "sim": 0.365,
+   "terms": [
+    "vietnam",
+    "businesses"
+   ],
+   "anchor": "vietnam businesses",
+   "snippet": "…when you weigh vietnam businesses, it helps to compare the options side by side…",
+   "why": "Both pages cover vietnam and businesses; the source is the stronger page."
+  },
+  {
+   "key": "/blog/access-to-highly-skilled-talent-why-vietnam-is-a-top-choice-for-outsourcing-in-2026/>/blog/vietnam-the-hotspot-for-it-developers/",
+   "s": 5,
+   "t": 81,
+   "sim": 0.365,
+   "terms": [
+    "vietnam",
+    "businesses"
+   ],
+   "anchor": "vietnam businesses",
+   "snippet": "…when you weigh vietnam businesses, it helps to compare the options side by side…",
+   "why": "Both pages cover vietnam and businesses; the source is the stronger page."
+  },
+  {
+   "key": "/blog/access-to-highly-skilled-talent-why-vietnam-is-a-top-choice-for-outsourcing-in-2026/>/report/2026-vietnam-outsourcing-industry-report/",
+   "s": 5,
+   "t": 103,
+   "sim": 0.365,
+   "terms": [
+    "vietnam",
+    "2026"
+   ],
+   "anchor": "vietnam 2026",
+   "snippet": "…when you weigh vietnam 2026, it helps to compare the options side by side…",
+   "why": "Both pages cover vietnam and 2026; the source is the stronger page."
+  },
+  {
+   "key": "/blog/vietnam-close-skills-gap-and-power-the-digital-economy/>/blog/advanced-skills-management-remote-teams/",
+   "s": 74,
+   "t": 6,
+   "sim": 0.365,
+   "terms": [
+    "skills",
+    "bridging"
+   ],
+   "anchor": "skills bridging",
+   "snippet": "…when you weigh skills bridging, it helps to compare the options side by side…",
+   "why": "Both pages cover skills and bridging; the source is the stronger page."
+  },
+  {
+   "key": "/blog/building-ai-ready-offshore-workforce-in-vietnam/>/blog/vietnam-offshore-team-holiday-business-continuity-benefits/",
+   "s": 11,
+   "t": 76,
+   "sim": 0.365,
+   "terms": [
+    "offshore",
+    "vietnam"
+   ],
+   "anchor": "offshore vietnam",
+   "snippet": "…when you weigh offshore vietnam, it helps to compare the options side by side…",
+   "why": "Both pages cover offshore and vietnam; the source is the stronger page."
+  },
+  {
+   "key": "/blog/global-companies-are-thriving-with-vietnam-teams/>/blog/unleashing-growth-how-finance-bpo-empowers-australian-businesses/",
+   "s": 24,
+   "t": 71,
+   "sim": 0.365,
+   "terms": [
+    "business",
+    "growth"
+   ],
+   "anchor": "business growth",
+   "snippet": "…when you weigh business growth, it helps to compare the options side by side…",
+   "why": "Both pages cover business and growth; the source is the stronger page."
+  },
+  {
+   "key": "/blog/global-companies-are-thriving-with-vietnam-teams/>/blog/vietnam-offshore-team-holiday-business-continuity-benefits/",
+   "s": 24,
+   "t": 76,
+   "sim": 0.365,
+   "terms": [
+    "vietnam",
+    "support"
+   ],
+   "anchor": "vietnam support",
+   "snippet": "…when you weigh vietnam support, it helps to compare the options side by side…",
+   "why": "Both pages cover vietnam and support; the source is the stronger page."
+  },
+  {
+   "key": "/blog/us-companies-pivot-traditional-hubs-success-vietnam/>/blog/new-roi-of-outsourcing/",
+   "s": 72,
+   "t": 39,
+   "sim": 0.365,
+   "terms": [
+    "companies",
+    "value"
+   ],
+   "anchor": "companies value",
+   "snippet": "…when you weigh companies value, it helps to compare the options side by side…",
+   "why": "Both pages cover companies and value; the source is the stronger page."
+  },
+  {
+   "key": "/report/2026-vietnam-outsourcing-industry-report/>/blog/pioneers-of-outsourcing-in-vietnam/",
+   "s": 103,
+   "t": 53,
+   "sim": 0.365,
+   "terms": [
+    "vietnam",
+    "industry"
+   ],
+   "anchor": "vietnam industry",
+   "snippet": "…when you weigh vietnam industry, it helps to compare the options side by side…",
+   "why": "Both pages cover vietnam and industry; the source is the stronger page."
+  },
+  {
+   "key": "/blog/us-companies-pivot-traditional-hubs-success-vietnam/>/blog/vietnam-offshore-team-holiday-business-continuity-benefits/",
+   "s": 72,
+   "t": 76,
+   "sim": 0.365,
+   "terms": [
+    "offshore",
+    "vietnam"
+   ],
+   "anchor": "offshore vietnam",
+   "snippet": "…when you weigh offshore vietnam, it helps to compare the options side by side…",
+   "why": "Both pages cover offshore and vietnam; the source is the stronger page."
+  },
+  {
+   "key": "/blog/us-companies-pivot-traditional-hubs-success-vietnam/>/ebook/how-we-built-high-retention-teams-in-vietnam/",
+   "s": 72,
+   "t": 93,
+   "sim": 0.365,
+   "terms": [
+    "offshore",
+    "vietnam"
+   ],
+   "anchor": "offshore vietnam",
+   "snippet": "…when you weigh offshore vietnam, it helps to compare the options side by side…",
+   "why": "Both pages cover offshore and vietnam; the source is the stronger page."
+  },
+  {
+   "key": "/video/team-profile-hang-trinh-hr-manager/>/video/van-to-executive-director-of-the-away-group-vietnam/",
+   "s": 107,
+   "t": 109,
+   "sim": 0.365,
+   "terms": [
+    "team",
+    "profile"
+   ],
+   "anchor": "team profile",
+   "snippet": "…when you weigh team profile, it helps to compare the options side by side…",
+   "why": "Both pages cover team and profile; the source is the stronger page."
+  },
+  {
+   "key": "/blog/vietnam-and-ai-talent-a-rising-hub-for-outsourcing-and-innovation/>/blog/vietnam-retail-global-back-office/",
+   "s": 73,
+   "t": 78,
+   "sim": 0.354,
+   "terms": [
+    "vietnam",
+    "rise"
+   ],
+   "anchor": "vietnam rise",
+   "snippet": "…when you weigh vietnam rise, it helps to compare the options side by side…",
+   "why": "Both pages cover vietnam and rise; the source is the stronger page."
+  },
+  {
+   "key": "/our-services/supply-chain-management/>/blog/building-ai-ready-offshore-workforce-in-vietnam/",
+   "s": 101,
+   "t": 11,
+   "sim": 0.338,
+   "terms": [
+    "build",
+    "offshore"
+   ],
+   "anchor": "build offshore",
+   "snippet": "…when you weigh build offshore, it helps to compare the options side by side…",
+   "why": "Both pages cover build and offshore; the source is the stronger page."
+  },
+  {
+   "key": "/blog/vietnam-is-future-of-digital-marketing-outsourcing/>/video/van-to-executive-director-of-the-away-group-vietnam/",
+   "s": 75,
+   "t": 109,
+   "sim": 0.333,
+   "terms": [
+    "team",
+    "vietnam"
+   ],
+   "anchor": "team vietnam",
+   "snippet": "…when you weigh team vietnam, it helps to compare the options side by side…",
+   "why": "Both pages cover team and vietnam; the source is the stronger page."
+  },
+  {
+   "key": "/blog/vietnam-the-hotspot-for-it-developers/>/blog/vietnam-tech-talent-boom/",
+   "s": 81,
+   "t": 80,
+   "sim": 0.333,
+   "terms": [
+    "vietnam",
+    "businesses"
+   ],
+   "anchor": "vietnam businesses",
+   "snippet": "…when you weigh vietnam businesses, it helps to compare the options side by side…",
+   "why": "Both pages cover vietnam and businesses; the source is the stronger page."
+  },
+  {
+   "key": "/blog/vietnam-the-hotspot-for-it-developers/>/blog/vn-ranking-rise-strategic-advantage/",
+   "s": 81,
+   "t": 84,
+   "sim": 0.333,
+   "terms": [
+    "vietnam",
+    "global"
+   ],
+   "anchor": "vietnam global",
+   "snippet": "…when you weigh vietnam global, it helps to compare the options side by side…",
+   "why": "Both pages cover vietnam and global; the source is the stronger page."
+  },
+  {
+   "key": "/report/2026-vietnam-outsourcing-industry-report/>/ebook/the-hidden-cost-of-hiring-locally/",
+   "s": 103,
+   "t": 94,
+   "sim": 0.333,
+   "terms": [
+    "free",
+    "ebook"
+   ],
+   "anchor": "free ebook",
+   "snippet": "…when you weigh free ebook, it helps to compare the options side by side…",
+   "why": "Both pages cover free and ebook; the source is the stronger page."
+  },
+  {
+   "key": "/blog/vietnam-retail-global-back-office/>/blog/vietnam-outsourcing-us-hiring-pressures/",
+   "s": 78,
+   "t": 77,
+   "sim": 0.316,
+   "terms": [
+    "vietnam",
+    "edge"
+   ],
+   "anchor": "vietnam edge",
+   "snippet": "…when you weigh vietnam edge, it helps to compare the options side by side…",
+   "why": "Both pages cover vietnam and edge; the source is the stronger page."
+  },
+  {
+   "key": "/blog/choose-the-right-global-model/>/blog/agency-retainer-vs-dedicated-marketing-team-which-wins-for-long-term-growth/",
+   "s": 13,
+   "t": 7,
+   "sim": 0.309,
+   "terms": [
+    "agency",
+    "team"
+   ],
+   "anchor": "agency team",
+   "snippet": "…when you weigh agency team, it helps to compare the options side by side…",
+   "why": "Both pages cover agency and team; the source is the stronger page."
+  },
+  {
+   "key": "/blog/agency-retainer-vs-dedicated-marketing-team-which-wins-for-long-term-growth/>/blog/vietnam-is-future-of-digital-marketing-outsourcing/",
+   "s": 7,
+   "t": 75,
+   "sim": 0.309,
+   "terms": [
+    "marketing",
+    "team"
+   ],
+   "anchor": "marketing team",
+   "snippet": "…when you weigh marketing team, it helps to compare the options side by side…",
+   "why": "Both pages cover marketing and team; the source is the stronger page."
+  },
+  {
+   "key": "/our-services/supply-chain-management/>/blog/leader-wellbeing-offshore-teams/",
+   "s": 101,
+   "t": 36,
+   "sim": 0.309,
+   "terms": [
+    "offshore",
+    "team"
+   ],
+   "anchor": "offshore team",
+   "snippet": "…when you weigh offshore team, it helps to compare the options side by side…",
+   "why": "Both pages cover offshore and team; the source is the stronger page."
+  },
+  {
+   "key": "/our-services/supply-chain-management/>/blog/the-foundation-of-every-great-offshore-team/",
+   "s": 101,
+   "t": 61,
+   "sim": 0.309,
+   "terms": [
+    "offshore",
+    "team"
+   ],
+   "anchor": "offshore team",
+   "snippet": "…when you weigh offshore team, it helps to compare the options side by side…",
+   "why": "Both pages cover offshore and team; the source is the stronger page."
+  },
+  {
+   "key": "/our-services/supply-chain-management/>/ebook/how-we-built-high-retention-teams-in-vietnam/",
+   "s": 101,
+   "t": 93,
+   "sim": 0.309,
+   "terms": [
+    "offshore",
+    "build"
+   ],
+   "anchor": "offshore build",
+   "snippet": "…when you weigh offshore build, it helps to compare the options side by side…",
+   "why": "Both pages cover offshore and build; the source is the stronger page."
+  },
+  {
+   "key": "/blog/vietnam-the-hotspot-for-it-developers/>/blog/vietnam-retail-global-back-office/",
+   "s": 81,
+   "t": 78,
+   "sim": 0.289,
+   "terms": [
+    "vietnam",
+    "global"
+   ],
+   "anchor": "vietnam global",
+   "snippet": "…when you weigh vietnam global, it helps to compare the options side by side…",
+   "why": "Both pages cover vietnam and global; the source is the stronger page."
+  },
+  {
+   "key": "/blog/vietnam-retail-global-back-office/>/blog/vn-ranking-rise-strategic-advantage/",
+   "s": 78,
+   "t": 84,
+   "sim": 0.289,
+   "terms": [
+    "vietnam",
+    "global"
+   ],
+   "anchor": "vietnam global",
+   "snippet": "…when you weigh vietnam global, it helps to compare the options side by side…",
+   "why": "Both pages cover vietnam and global; the source is the stronger page."
+  },
+  {
+   "key": "/blog/outsourcing-trends-for-2025-the-talent-revolution-that-can-transform-your-business/>/blog/vietnam-retail-global-back-office/",
+   "s": 49,
+   "t": 78,
+   "sim": 0.267,
+   "terms": [
+    "global",
+    "edge"
+   ],
+   "anchor": "global edge",
+   "snippet": "…when you weigh global edge, it helps to compare the options side by side…",
+   "why": "Both pages cover global and edge; the source is the stronger page."
+  }
+ ],
+ "recommendations": [
+  {
+   "id": "r1",
+   "topic": "vietnam",
+   "overlaps": [
+    "cost"
+   ],
+   "title": "Vietnam vs Philippines outsourcing costs: a 2026 breakdown",
+   "question": "How much cheaper is outsourcing to Vietnam than the Philippines?",
+   "why": "No article in this topic answers this question yet, and it would bridge the vietnam pages to cost.",
+   "priority": "high",
+   "score": 0.91,
+   "primaryKeyword": "vietnam vs philippines outsourcing costs",
+   "secondaryKeywords": [
+    "outsourcing vietnam",
+    "offshore team"
+   ],
+   "outline": [
+    "What is Vietnam vs Philippines outsourcing costs?",
+    "How does it work in practice?",
+    "What does it cost?",
+    "What are the risks and how do you reduce them?"
+   ],
+   "geo": {
+    "answerFirst": "Short direct answer of about fifty words that an AI assistant can quote verbatim, naming the key facts, the typical cost range, and who it suits best, before the article goes into detail.",
+    "entities": [
+     "Vietnam",
+     "Ho Chi Minh City",
+     "offshore staffing",
+     "labour law"
+    ],
+    "faqs": [
+     "Is it legal to hire staff in Vietnam directly?",
+     "How long does onboarding take?"
+    ],
+    "evidence": [
+     "Average salary data by role",
+     "Client case study with measured savings"
+    ],
+    "schema": [
+     "Article",
+     "FAQPage"
+    ]
+   },
+   "linksTo": [
+    "/blog/12-accounting-and-bookkeeping-tasks-you-can-outsource-to-vietnam-right-now/"
+   ],
+   "linksFrom": [
+    "/blog/12-accounting-and-bookkeeping-tasks-you-can-outsource-to-vietnam-right-now/"
+   ]
+  },
+  {
+   "id": "r2",
+   "topic": "managing-teams",
+   "overlaps": [
+    "vietnam"
+   ],
+   "title": "Running daily stand-ups with a team in Vietnam",
+   "question": "How do you manage a remote team in Vietnam across time zones?",
+   "why": "No article in this topic answers this question yet, and it would bridge the managing-teams pages to vietnam.",
+   "priority": "high",
+   "score": 0.84,
+   "primaryKeyword": "running daily stand-ups with a team in vietnam",
+   "secondaryKeywords": [
+    "outsourcing vietnam",
+    "offshore team"
+   ],
+   "outline": [
+    "What is Running daily stand-ups with a team in Vietnam?",
+    "How does it work in practice?",
+    "What does it cost?",
+    "What are the risks and how do you reduce them?"
+   ],
+   "geo": {
+    "answerFirst": "Short direct answer of about fifty words that an AI assistant can quote verbatim, naming the key facts, the typical cost range, and who it suits best, before the article goes into detail.",
+    "entities": [
+     "Vietnam",
+     "Ho Chi Minh City",
+     "offshore staffing",
+     "labour law"
+    ],
+    "faqs": [
+     "Is it legal to hire staff in Vietnam directly?",
+     "How long does onboarding take?"
+    ],
+    "evidence": [
+     "Average salary data by role",
+     "Client case study with measured savings"
+    ],
+    "schema": [
+     "Article",
+     "FAQPage"
+    ]
+   },
+   "linksTo": [
+    "/blog/12-accounting-and-bookkeeping-tasks-you-can-outsource-to-vietnam-right-now/"
+   ],
+   "linksFrom": [
+    "/blog/12-accounting-and-bookkeeping-tasks-you-can-outsource-to-vietnam-right-now/"
+   ]
+  },
+  {
+   "id": "r3",
+   "topic": "worth-it",
+   "overlaps": [],
+   "title": "When outsourcing is not worth it: 5 warning signs",
+   "question": "When should a small business not outsource?",
+   "why": "No article in this topic answers this question yet, and it would bridge the worth-it pages to the rest of the cluster.",
+   "priority": "medium",
+   "score": 0.66,
+   "primaryKeyword": "when outsourcing is not worth it",
+   "secondaryKeywords": [
+    "outsourcing vietnam",
+    "offshore team"
+   ],
+   "outline": [
+    "What is When outsourcing is not worth it?",
+    "How does it work in practice?",
+    "What does it cost?",
+    "What are the risks and how do you reduce them?"
+   ],
+   "geo": {
+    "answerFirst": "Short direct answer of about fifty words that an AI assistant can quote verbatim, naming the key facts, the typical cost range, and who it suits best, before the article goes into detail.",
+    "entities": [
+     "Vietnam",
+     "Ho Chi Minh City",
+     "offshore staffing",
+     "labour law"
+    ],
+    "faqs": [
+     "Is it legal to hire staff in Vietnam directly?",
+     "How long does onboarding take?"
+    ],
+    "evidence": [
+     "Average salary data by role",
+     "Client case study with measured savings"
+    ],
+    "schema": [
+     "Article",
+     "FAQPage"
+    ]
+   },
+   "linksTo": [
+    "/blog/12-accounting-and-bookkeeping-tasks-you-can-outsource-to-vietnam-right-now/"
+   ],
+   "linksFrom": [
+    "/blog/12-accounting-and-bookkeeping-tasks-you-can-outsource-to-vietnam-right-now/"
+   ]
+  },
+  {
+   "id": "r4",
+   "topic": "cost",
+   "overlaps": [
+    "comparisons"
+   ],
+   "title": "The hidden costs of offshore staffing",
+   "question": "What are the hidden costs of offshore staffing?",
+   "why": "No article in this topic answers this question yet, and it would bridge the cost pages to comparisons.",
+   "priority": "medium",
+   "score": 0.61,
+   "primaryKeyword": "the hidden costs of offshore staffing",
+   "secondaryKeywords": [
+    "outsourcing vietnam",
+    "offshore team"
+   ],
+   "outline": [
+    "What is The hidden costs of offshore staffing?",
+    "How does it work in practice?",
+    "What does it cost?",
+    "What are the risks and how do you reduce them?"
+   ],
+   "geo": {
+    "answerFirst": "Short direct answer of about fifty words that an AI assistant can quote verbatim, naming the key facts, the typical cost range, and who it suits best, before the article goes into detail.",
+    "entities": [
+     "Vietnam",
+     "Ho Chi Minh City",
+     "offshore staffing",
+     "labour law"
+    ],
+    "faqs": [
+     "Is it legal to hire staff in Vietnam directly?",
+     "How long does onboarding take?"
+    ],
+    "evidence": [
+     "Average salary data by role",
+     "Client case study with measured savings"
+    ],
+    "schema": [
+     "Article",
+     "FAQPage"
+    ]
+   },
+   "linksTo": [
+    "/blog/12-accounting-and-bookkeeping-tasks-you-can-outsource-to-vietnam-right-now/"
+   ],
+   "linksFrom": [
+    "/blog/12-accounting-and-bookkeeping-tasks-you-can-outsource-to-vietnam-right-now/"
+   ]
+  },
+  {
+   "id": "r5",
+   "topic": "comparisons",
+   "overlaps": [],
+   "title": "Agency vs dedicated team vs freelancer",
+   "question": "Should I use an agency, a dedicated team or freelancers?",
+   "why": "No article in this topic answers this question yet, and it would bridge the comparisons pages to the rest of the cluster.",
+   "priority": "low",
+   "score": 0.42,
+   "primaryKeyword": "agency vs dedicated team vs freelancer",
+   "secondaryKeywords": [
+    "outsourcing vietnam",
+    "offshore team"
+   ],
+   "outline": [
+    "What is Agency vs dedicated team vs freelancer?",
+    "How does it work in practice?",
+    "What does it cost?",
+    "What are the risks and how do you reduce them?"
+   ],
+   "geo": {
+    "answerFirst": "Short direct answer of about fifty words that an AI assistant can quote verbatim, naming the key facts, the typical cost range, and who it suits best, before the article goes into detail.",
+    "entities": [
+     "Vietnam",
+     "Ho Chi Minh City",
+     "offshore staffing",
+     "labour law"
+    ],
+    "faqs": [
+     "Is it legal to hire staff in Vietnam directly?",
+     "How long does onboarding take?"
+    ],
+    "evidence": [
+     "Average salary data by role",
+     "Client case study with measured savings"
+    ],
+    "schema": [
+     "Article",
+     "FAQPage"
+    ]
+   },
+   "linksTo": [
+    "/blog/12-accounting-and-bookkeeping-tasks-you-can-outsource-to-vietnam-right-now/"
+   ],
+   "linksFrom": [
+    "/blog/12-accounting-and-bookkeeping-tasks-you-can-outsource-to-vietnam-right-now/"
+   ]
+  }
+ ],
+ "stats": {
+  "pagesCrawled": 270,
+  "mapped": 118,
+  "links": 863,
+  "orphans": 45
+ }
+}

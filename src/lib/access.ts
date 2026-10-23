@@ -274,7 +274,11 @@ export function isClientBlogTaxonomyUpdate(data: unknown): boolean {
 
   const changedFields = Object.keys(data);
   return changedFields.length > 0 && changedFields.every(
-    (field) => field === "blogCategories" || field === "blogTags",
+    (field) =>
+      field === "blogCategories" ||
+      field === "blogTags" ||
+      field === "contentMapEnabled" ||
+      field === "topicAuthorities",
   );
 }
 

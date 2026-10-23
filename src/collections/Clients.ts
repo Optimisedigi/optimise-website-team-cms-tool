@@ -1,4 +1,6 @@
-import { Forbidden, type CollectionConfig, type CollectionBeforeChangeHook } from "payload";
+import { Forbidden, ValidationError, type CollectionConfig, type CollectionBeforeChangeHook } from "payload";
+import { normalizeAuthorityRows, validateContentMapSettings, type AuthorityRow } from "../lib/content-map/authorities";
+import { contentMapClientAfterChange } from "../lib/content-map/hooks";
 import crypto from "crypto";
 import { logActivity } from "../lib/activity-log";
 import { invalidateMatchableClients } from "../lib/mail/client-index-cache";
@@ -44,6 +46,29 @@ import {
  * price-change notice process or point the CMS at a different subscription.
  */
 const SERVER_MANAGED_HOSTING_FIELD = { create: () => false, update: () => false };
+
+/**
+ * Content Map: generate stable authority keys, default the first row to
+ * primary, and block saves that could never be analysed.
+ */
+const normalizeContentMapSettings: CollectionBeforeChangeHook = ({ data, originalDoc }) => {
+  if (!data) return data;
+  const touched = "topicAuthorities" in data || "contentMapEnabled" in data || "websiteUrl" in data;
+  if (!touched) return data;
+  const rows: AuthorityRow[] = Array.isArray(data.topicAuthorities)
+    ? data.topicAuthorities
+    : Array.isArray(originalDoc?.topicAuthorities)
+      ? originalDoc.topicAuthorities
+      : [];
+  const enabled = "contentMapEnabled" in data ? data.contentMapEnabled === true : originalDoc?.contentMapEnabled === true;
+  const websiteUrl = String(("websiteUrl" in data ? data.websiteUrl : originalDoc?.websiteUrl) ?? "");
+  const check = validateContentMapSettings({ enabled, websiteUrl, rows });
+  if (!check.ok) {
+    throw new ValidationError({ errors: [{ message: check.error, path: "topicAuthorities" }] });
+  }
+  if (Array.isArray(data.topicAuthorities)) data.topicAuthorities = normalizeAuthorityRows(rows);
+  return data;
+};
 
 const restrictBlogTaxonomyUpdates: CollectionBeforeChangeHook = ({ data, operation, req }) => {
   if (
@@ -243,6 +268,7 @@ export const Clients: CollectionConfig = {
       derivePresentationDeckSlugs,
       deriveWebsiteTypeFields,
       addClientTimelineEntries,
+      normalizeContentMapSettings,
     ],
     afterChange: [
       async ({ doc, previousDoc, operation, req }) => {
@@ -330,6 +356,7 @@ export const Clients: CollectionConfig = {
           await startInitialGoogleAdsSnapshot(payload, audit.id, bootstrapDoc.id);
         });
       },
+      contentMapClientAfterChange,
       // Wipe the per-month waste/relevancy cache whenever the client's
       // brand keywords change, so the Overview tab's brand/generic split
       // re-derives from the new keyword set on the next dashboard load.
@@ -3973,6 +4000,64 @@ export const Clients: CollectionConfig = {
               },
             },
             {
+              type: "collapsible",
+              label: "Content Map",
+              fields: [
+                {
+                  name: "contentMapEnabled",
+                  type: "checkbox",
+                  label: "Content analysis (Content Map)",
+                  defaultValue: false,
+                  access: {
+                    read: clientBlogTaxonomyAccess,
+                    create: clientBlogTaxonomyAccess,
+                    update: clientBlogTaxonomyAccess,
+                  },
+                  admin: {
+                    description:
+                      "Crawls the website weekly and whenever this client's articles change, then maps topics, internal links and what to write next on the Blog Posts tab.",
+                  },
+                },
+                {
+                  name: "topicAuthorities",
+                  type: "array",
+                  label: "Topic authorities",
+                  maxRows: 8,
+                  access: {
+                    read: clientBlogTaxonomyAccess,
+                    create: clientBlogTaxonomyAccess,
+                    update: clientBlogTaxonomyAccess,
+                  },
+                  admin: {
+                    description:
+                      "The topics this client wants to be known for (max 8). Exactly one is primary. Each article sits under one authority and may overlap into others.",
+                  },
+                  fields: [
+                    { name: "name", type: "text", required: true },
+                    {
+                      name: "description",
+                      type: "textarea",
+                      admin: { description: "What this topic covers. Helps the AI place articles and suggest ideas." },
+                    },
+                    {
+                      name: "primary",
+                      type: "checkbox",
+                      defaultValue: false,
+                      admin: { description: "The client's main topic. Only one row can be primary." },
+                    },
+                    {
+                      name: "key",
+                      type: "text",
+                      admin: {
+                        readOnly: true,
+                        description: "Generated from the name. Used to match analysis results.",
+                      },
+                    },
+                  ],
+                },
+              ],
+            },
+            {
               name: "blogTags",
               type: "textarea",
               access: {
@@ -4035,11 +4120,11 @@ export const Clients: CollectionConfig = {
               },
             },
             {
-              name: "clientTopicMap",
+              name: "clientContentMap",
               type: "ui",
               admin: {
                 components: {
-                  Field: "./components/ClientTopicMap",
+                  Field: "./components/ClientContentMap",
                 },
               },
             },

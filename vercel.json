@@ -104,6 +104,14 @@
     {
       "path": "/api/google-ads-milestone-audits/cron",
       "schedule": "40 * * * *"
+    },
+    {
+      "path": "/api/content-map/cron",
+      "schedule": "0 4 * * 1"
+    },
+    {
+      "path": "/api/node-security-releases/cron",
+      "schedule": "0 0 * * *"
     }
   ],
   "functions": {

@@ -81,7 +81,7 @@ import { default as default_1696ac05d4c7b07e466b699912c64260 } from '../../../co
 import { default as default_ed819b1ecb4aa7a99ab5ada6893b4ec2 } from '../../../components/RunSeoProposalButton'
 import { default as default_9ad3230f60ec6dd4da19d1c01b8cf1ba } from '../../../components/ClientSeoProposalActions'
 import { default as default_b0745460f96744dbbe5a3465bced6bcf } from '../../../components/ClientBlogPostsList'
-import { default as default_c8dab20425f2b2eab04984a9a36002da } from '../../../components/ClientTopicMap'
+import { default as default_f6edf509da99f5330205fbcda1b1f469 } from '../../../components/ClientContentMap'
 import { default as default_c1ac710d288beee1f124dc7c494f485d } from '../../../components/CheckTagSetupButton'
 import { default as default_393c119240b8bfc6d99ad874d4764ea6 } from '../../../components/ClientWorkingDocsPanel'
 import { default as default_3a3a415e629d2073f7ef9d3759b5b3c7 } from '../../../components/ClientPresentationLink'
@@ -331,7 +331,7 @@ export const importMap = {
   "./components/RunSeoProposalButton#default": default_ed819b1ecb4aa7a99ab5ada6893b4ec2,
   "./components/ClientSeoProposalActions#default": default_9ad3230f60ec6dd4da19d1c01b8cf1ba,
   "./components/ClientBlogPostsList#default": default_b0745460f96744dbbe5a3465bced6bcf,
-  "./components/ClientTopicMap#default": default_c8dab20425f2b2eab04984a9a36002da,
+  "./components/ClientContentMap#default": default_f6edf509da99f5330205fbcda1b1f469,
   "./components/CheckTagSetupButton#default": default_c1ac710d288beee1f124dc7c494f485d,
   "/components/ClientWorkingDocsPanel#default": default_393c119240b8bfc6d99ad874d4764ea6,
   "/components/ClientPresentationLink#default": default_3a3a415e629d2073f7ef9d3759b5b3c7,

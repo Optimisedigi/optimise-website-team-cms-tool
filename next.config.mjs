@@ -25,6 +25,17 @@ const nextConfig = {
       permanent: false,
     },
   ],
+  // Content Map page lives at /SEO/Topic-association-linking/<client-slug>.
+  // Route files are case-sensitive but rewrite sources are not, so this lets
+  // any capitalisation (e.g. all lowercase) reach the same page.
+  rewrites: async () => ({
+    beforeFiles: [
+      { source: '/seo/topic-association-linking', destination: '/SEO/Topic-association-linking' },
+      { source: '/seo/topic-association-linking/:clientSlug', destination: '/SEO/Topic-association-linking/:clientSlug' },
+    ],
+    afterFiles: [],
+    fallback: [],
+  }),
   headers: async () => [
     {
       source: '/:path*',

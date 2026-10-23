@@ -102,6 +102,13 @@ export interface Config {
     'job-posts': JobPost;
     media: Media;
     'internal-link-suggestions': InternalLinkSuggestion;
+    'content-map-snapshots': ContentMapSnapshot;
+    'content-map-suggestions': ContentMapSuggestion;
+    'content-map-questions': ContentMapQuestion;
+    'content-map-citations': ContentMapCitation;
+    'content-map-research': ContentMapResearch;
+    'content-map-gsc': ContentMapGsc;
+    'content-map-placement-checks': ContentMapPlacementCheck;
     'seo-audits': SeoAudit;
     'seo-audit-proposals': SeoAuditProposal;
     'cro-audits': CroAudit;
@@ -236,6 +243,13 @@ export interface Config {
     'job-posts': JobPostsSelect<false> | JobPostsSelect<true>;
     media: MediaSelect<false> | MediaSelect<true>;
     'internal-link-suggestions': InternalLinkSuggestionsSelect<false> | InternalLinkSuggestionsSelect<true>;
+    'content-map-snapshots': ContentMapSnapshotsSelect<false> | ContentMapSnapshotsSelect<true>;
+    'content-map-suggestions': ContentMapSuggestionsSelect<false> | ContentMapSuggestionsSelect<true>;
+    'content-map-questions': ContentMapQuestionsSelect<false> | ContentMapQuestionsSelect<true>;
+    'content-map-citations': ContentMapCitationsSelect<false> | ContentMapCitationsSelect<true>;
+    'content-map-research': ContentMapResearchSelect<false> | ContentMapResearchSelect<true>;
+    'content-map-gsc': ContentMapGscSelect<false> | ContentMapGscSelect<true>;
+    'content-map-placement-checks': ContentMapPlacementChecksSelect<false> | ContentMapPlacementChecksSelect<true>;
     'seo-audits': SeoAuditsSelect<false> | SeoAuditsSelect<true>;
     'seo-audit-proposals': SeoAuditProposalsSelect<false> | SeoAuditProposalsSelect<true>;
     'cro-audits': CroAuditsSelect<false> | CroAuditsSelect<true>;
@@ -1475,6 +1489,31 @@ export interface Client {
    * Blog categories for this client (one per line). Pre-populates the category dropdown in the Blog Prompter.
    */
   blogCategories?: string | null;
+  /**
+   * Crawls the website weekly and whenever this client's articles change, then maps topics, internal links and what to write next on the Blog Posts tab.
+   */
+  contentMapEnabled?: boolean | null;
+  /**
+   * The topics this client wants to be known for (max 8). Exactly one is primary. Each article sits under one authority and may overlap into others.
+   */
+  topicAuthorities?:
+    | {
+        name: string;
+        /**
+         * What this topic covers. Helps the AI place articles and suggest ideas.
+         */
+        description?: string | null;
+        /**
+         * The client's main topic. Only one row can be primary.
+         */
+        primary?: boolean | null;
+        /**
+         * Generated from the name. Used to match analysis results.
+         */
+        key?: string | null;
+        id?: string | null;
+      }[]
+    | null;
   /**
    * Available tags for this client (one per line). Pre-populates the tag options in the Blog Prompter.
    */
@@ -8280,9 +8319,13 @@ export interface ActivityLog {
 export interface MeetingScheduler {
   id: number;
   /**
-   * Meeting title (e.g. 'Q2 Strategy Review')
+   * Heading attendees see on their scheduling page. Name what the meeting is about (e.g. 'ADT Google Ads + Marketing strategy').
    */
   title: string;
+  /**
+   * Shown to attendees under “What's covered” on their scheduling page and in the invite email. Start lines with - for bullet points.
+   */
+  meetingTopic?: string | null;
   /**
    * Client or prospect (from Client Proposals) this meeting is for
    */
@@ -8299,10 +8342,6 @@ export interface MeetingScheduler {
    * Meeting duration
    */
   durationMinutes?: ('15' | '30' | '45' | '60' | '90' | '120') | null;
-  /**
-   * Brief description shown to attendees
-   */
-  meetingTopic?: string | null;
   /**
    * Timezone for slots
    */
@@ -8634,7 +8673,11 @@ export interface BlogPrompt {
    */
   blogPost?: (number | null) | BlogPost;
   status?: ('draft' | 'client-submitted' | 'ready') | null;
-  source?: ('internal' | 'client' | 'topic-clusters') | null;
+  source?: ('internal' | 'client' | 'topic-clusters' | 'content-map') | null;
+  /**
+   * Content Map "write next" idea this brief came from.
+   */
+  contentMapRecommendationId?: string | null;
   archivedAt?: string | null;
   /**
    * Syncs back to Growth Tools content gap tracker
@@ -8788,7 +8831,233 @@ export interface InternalLinkSuggestion {
   clusterRelation?: string | null;
   clusterName?: string | null;
   status?: ('pending' | 'approved' | 'rejected') | null;
+  client?: (number | null) | Client;
+  origin?: ('topic-clusters' | 'content-map') | null;
+  /**
+   * Content Map opportunity key (source>target).
+   */
+  opportunityKey?: string | null;
   runId?: number | null;
+  actionStatus?: ('drafted' | 'applied' | 'failed' | 'already-linked') | null;
+  actionSource?: ('cms-article' | 'live-page') | null;
+  blogPost?: (number | null) | BlogPost;
+  editOriginal?: string | null;
+  editReplacement?: string | null;
+  actionNote?: string | null;
+  actionModel?: string | null;
+  appliedAt?: string | null;
+  appliedBy?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "content-map-snapshots".
+ */
+export interface ContentMapSnapshot {
+  id: number;
+  client: number | Client;
+  runId: string;
+  status: 'running' | 'completed' | 'failed';
+  mode?: ('full' | 'refresh') | null;
+  phase?: string | null;
+  pagesCrawled?: number | null;
+  error?: string | null;
+  pendingRefresh?: boolean | null;
+  startedAt?: string | null;
+  generatedAt?: string | null;
+  stats?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  data?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "content-map-suggestions".
+ */
+export interface ContentMapSuggestion {
+  id: number;
+  client: number | Client;
+  kind: 'topic' | 'bridge' | 'article';
+  title: string;
+  why?: string | null;
+  topic?: string | null;
+  topicB?: string | null;
+  status: 'pending' | 'approved' | 'dismissed';
+  origin: 'team' | 'client' | 'ai';
+  suggestedBy?: string | null;
+  suggestedByUser?: (number | null) | User;
+  decidedBy?: string | null;
+  decidedAt?: string | null;
+  dismissReason?: string | null;
+  brief?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  recommendationId?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "content-map-questions".
+ */
+export interface ContentMapQuestion {
+  id: number;
+  client: number | Client;
+  topic: string;
+  question: string;
+  source: 'ai' | 'team' | 'client' | 'recommendation' | 'article';
+  active?: boolean | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "content-map-citations".
+ */
+export interface ContentMapCitation {
+  id: number;
+  client: number | Client;
+  runId: string;
+  status: 'running' | 'completed' | 'failed';
+  phase?: string | null;
+  error?: string | null;
+  startedAt?: string | null;
+  generatedAt?: string | null;
+  result?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  insights?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  stats?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "content-map-research".
+ */
+export interface ContentMapResearch {
+  id: number;
+  client: number | Client;
+  runId: string;
+  status: 'running' | 'completed' | 'failed';
+  phase?: string | null;
+  error?: string | null;
+  startedAt?: string | null;
+  generatedAt?: string | null;
+  result?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  insights?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  stats?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "content-map-gsc".
+ */
+export interface ContentMapGsc {
+  id: number;
+  client: number | Client;
+  pulledAt?: string | null;
+  periodStart?: string | null;
+  periodEnd?: string | null;
+  pages?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  queries?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "content-map-placement-checks".
+ */
+export interface ContentMapPlacementCheck {
+  id: number;
+  client: number | Client;
+  title?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -11484,7 +11753,8 @@ export interface Notification {
     | 'team-task-mention'
     | 'hosting-duplicate-subscription'
     | 'client-email-received'
-    | 'mail-follow-up-due';
+    | 'mail-follow-up-due'
+    | 'node-security-release';
   title: string;
   /**
    * Short summary line.
@@ -12802,6 +13072,16 @@ export interface ClientsSelect<T extends boolean = true> {
   presentedBy?: T;
   seoAuditProposals?: T;
   blogCategories?: T;
+  contentMapEnabled?: T;
+  topicAuthorities?:
+    | T
+    | {
+        name?: T;
+        description?: T;
+        primary?: T;
+        key?: T;
+        id?: T;
+      };
   blogTags?: T;
   servicePages?: T;
   blogTone?: T;
@@ -13634,9 +13914,9 @@ export interface ClientValueLedgerItemsSelect<T extends boolean = true> {
  */
 export interface MeetingSchedulersSelect<T extends boolean = true> {
   title?: T;
+  meetingTopic?: T;
   client?: T;
   durationMinutes?: T;
-  meetingTopic?: T;
   timezone?: T;
   slotIntervalMinutes?: T;
   dateRangeStart?: T;
@@ -13874,6 +14154,7 @@ export interface BlogPromptsSelect<T extends boolean = true> {
   blogPost?: T;
   status?: T;
   source?: T;
+  contentMapRecommendationId?: T;
   archivedAt?: T;
   gapStatus?: T;
   updatedAt?: T;
@@ -14014,7 +14295,135 @@ export interface InternalLinkSuggestionsSelect<T extends boolean = true> {
   clusterRelation?: T;
   clusterName?: T;
   status?: T;
+  client?: T;
+  origin?: T;
+  opportunityKey?: T;
   runId?: T;
+  actionStatus?: T;
+  actionSource?: T;
+  blogPost?: T;
+  editOriginal?: T;
+  editReplacement?: T;
+  actionNote?: T;
+  actionModel?: T;
+  appliedAt?: T;
+  appliedBy?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "content-map-snapshots_select".
+ */
+export interface ContentMapSnapshotsSelect<T extends boolean = true> {
+  client?: T;
+  runId?: T;
+  status?: T;
+  mode?: T;
+  phase?: T;
+  pagesCrawled?: T;
+  error?: T;
+  pendingRefresh?: T;
+  startedAt?: T;
+  generatedAt?: T;
+  stats?: T;
+  data?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "content-map-suggestions_select".
+ */
+export interface ContentMapSuggestionsSelect<T extends boolean = true> {
+  client?: T;
+  kind?: T;
+  title?: T;
+  why?: T;
+  topic?: T;
+  topicB?: T;
+  status?: T;
+  origin?: T;
+  suggestedBy?: T;
+  suggestedByUser?: T;
+  decidedBy?: T;
+  decidedAt?: T;
+  dismissReason?: T;
+  brief?: T;
+  recommendationId?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "content-map-questions_select".
+ */
+export interface ContentMapQuestionsSelect<T extends boolean = true> {
+  client?: T;
+  topic?: T;
+  question?: T;
+  source?: T;
+  active?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "content-map-citations_select".
+ */
+export interface ContentMapCitationsSelect<T extends boolean = true> {
+  client?: T;
+  runId?: T;
+  status?: T;
+  phase?: T;
+  error?: T;
+  startedAt?: T;
+  generatedAt?: T;
+  result?: T;
+  insights?: T;
+  stats?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "content-map-research_select".
+ */
+export interface ContentMapResearchSelect<T extends boolean = true> {
+  client?: T;
+  runId?: T;
+  status?: T;
+  phase?: T;
+  error?: T;
+  startedAt?: T;
+  generatedAt?: T;
+  result?: T;
+  insights?: T;
+  stats?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "content-map-gsc_select".
+ */
+export interface ContentMapGscSelect<T extends boolean = true> {
+  client?: T;
+  pulledAt?: T;
+  periodStart?: T;
+  periodEnd?: T;
+  pages?: T;
+  queries?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "content-map-placement-checks_select".
+ */
+export interface ContentMapPlacementChecksSelect<T extends boolean = true> {
+  client?: T;
+  title?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -16611,6 +17020,26 @@ export interface OptimateSetting {
    */
   blogImageGenerationModel: string;
   /**
+   * Optional. Model that writes accepted Content Map links into articles and writes the Write next ideas. Leave blank to use the subscription models only (Kimi K3, then Claude and Grok via OAuth).
+   */
+  contentMapModel?:
+    | (
+        | 'claude-sonnet-5.5'
+        | 'claude-opus-5.5'
+        | 'claude-haiku-5.5'
+        | 'kimi-k3'
+        | 'kimi-for-coding'
+        | 'minimax-m3'
+        | 'mimo-v2.6-pro'
+        | 'mimo-v2.6-flash'
+        | 'gpt-6-astra'
+        | 'gpt-6-sol'
+        | 'gpt-6-luna'
+        | 'grok-4.7'
+        | 'grok-4.6'
+      )
+    | null;
+  /**
    * Model used for OptiMate live voice calls. Mini is cheaper and faster; Realtime 2 and 2.1 are better for complex tool-heavy requests; 2.1 is the newest.
    */
   voiceRealtimeModel: 'gpt-realtime-mini' | 'gpt-realtime-2' | 'gpt-realtime-2.1';
@@ -16976,6 +17405,7 @@ export interface OptimateSettingsSelect<T extends boolean = true> {
   searchTermResearchModel?: T;
   negativeSweepModel?: T;
   blogImageGenerationModel?: T;
+  contentMapModel?: T;
   voiceRealtimeModel?: T;
   voiceAuthMethod?: T;
   voiceApiKeyEnabled?: T;

@@ -1,4 +1,5 @@
 import type { CollectionConfig } from "payload";
+import { contentMapBlogPostAfterChange } from "../lib/content-map/hooks";
 import matter from "gray-matter";
 import { logActivity } from "../lib/activity-log";
 import { createLedgerItem } from "../lib/client-value-ledger";
@@ -146,6 +147,7 @@ export const BlogPosts: CollectionConfig = {
             });
         }
       },
+      contentMapBlogPostAfterChange,
       async ({ doc, previousDoc, req }) => {
         if (req.context?.skipWebsiteSync) return;
         await enqueuePost(req.payload, doc, previousDoc, req);

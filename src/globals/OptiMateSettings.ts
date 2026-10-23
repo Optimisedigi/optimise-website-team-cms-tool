@@ -184,6 +184,7 @@ export const OptiMateSettings: GlobalConfig = {
         data.emailAssistantModel = normaliseOptionalPickerModel(data.emailAssistantModel);
         data.searchTermResearchModel = normaliseOptionalPickerModel(data.searchTermResearchModel);
         data.negativeSweepModel = normaliseOptionalPickerModel(data.negativeSweepModel);
+        data.contentMapModel = normaliseOptionalPickerModel(data.contentMapModel);
         data.blogImageGenerationModel = normaliseRequiredNativeModel(
           data.blogImageGenerationModel,
           DEFAULT_BLOG_IMAGE_GENERATION_MODEL,
@@ -323,6 +324,22 @@ export const OptiMateSettings: GlobalConfig = {
                     width: "50%",
                     description:
                       "Gemini Imagen model used to generate blog hero images.",
+                  },
+                },
+              ],
+            },
+            {
+              type: "row",
+              fields: [
+                {
+                  name: "contentMapModel",
+                  type: "select",
+                  options: MODEL_OPTIONS,
+                  label: "Content Map model",
+                  admin: {
+                    width: "50%",
+                    description:
+                      "Optional. Model that writes accepted Content Map links into articles and writes the Write next ideas. Leave blank to use the subscription models only (Kimi K3, then Claude and Grok via OAuth).",
                   },
                 },
               ],

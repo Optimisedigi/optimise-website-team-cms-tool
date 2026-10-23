@@ -166,7 +166,14 @@ export const BlogPrompts: CollectionConfig = {
         { label: "Internal", value: "internal" },
         { label: "Client", value: "client" },
         { label: "Topic Clusters", value: "topic-clusters" },
+        { label: "Content Map", value: "content-map" },
       ],
+    },
+    {
+      name: "contentMapRecommendationId",
+      type: "text",
+      index: true,
+      admin: { readOnly: true, description: "Content Map \"write next\" idea this brief came from." },
     },
     {
       name: "archivedAt",

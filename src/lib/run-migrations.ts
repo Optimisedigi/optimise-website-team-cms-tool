@@ -7,6 +7,7 @@ import { BANK_RECEIPTS_SCHEMA } from './finance/bank-receipts-schema';
 import { ESTIMATE_ADJUSTMENTS_CLIENT_SCHEMA, ESTIMATE_ADJUSTMENTS_SCHEMA } from './finance/estimate-adjustments-schema';
 import { GOOGLE_ADS_CHANGE_PREVIEWS_SCHEMA } from './agents/optimate-google-ads/change-previews-schema';
 import { CONTRACT_REVIEW_SCHEMA } from './contract-review-schema';
+import { CONTENT_MAP_SCHEMA } from './content-map/schema';
 
 /**
  * One result row per `run()` call inside `runMigrations`.
@@ -996,6 +997,17 @@ export async function runMigrations(
     await run("mark_migration:20261024_120000_estimate_adjustments", "INSERT INTO `payload_migrations` (`name`, `batch`, `created_at`, `updated_at`) SELECT '20261024_120000_estimate_adjustments', 1, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE NOT EXISTS (SELECT 1 FROM `payload_migrations` WHERE `name` = '20261024_120000_estimate_adjustments')");
   }
 
+  // Content Map (2026-10-26). Additive only; runs before the marker
+  // short-circuit so production picks it up. Keep in sync with
+  // src/migrations/20261026_120000_content_map.ts.
+  async function addContentMapSchema(): Promise<void> {
+    for (const table of ["clients", "internal_link_suggestions", "blog_prompts", "payload_migrations"]) {
+      if (!(await tableExists(table))) return;
+    }
+    for (const [label, statement] of CONTENT_MAP_SCHEMA) await run(label, statement);
+    await run("mark_migration:20261026_120000_content_map", "INSERT INTO `payload_migrations` (`name`, `batch`, `created_at`, `updated_at`) SELECT '20261026_120000_content_map', 1, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE NOT EXISTS (SELECT 1 FROM `payload_migrations` WHERE `name` = '20261026_120000_content_map')");
+  }
+
   // OptiMate Google Ads change previews (2026-10-20). Additive only; runs
   // before the marker short-circuit so production picks it up. Fresh databases
   // call it again after the full sweep creates users and payload_migrations.
@@ -1075,6 +1087,7 @@ export async function runMigrations(
     await addBlogPostSources();
     await addBankReceipts();
     await addEstimateAdjustments();
+    await addContentMapSchema();
     await addGoogleAdsChangePreviews();
     await addContractDraftReview();
     await addMeetingSchedulerProspects();
@@ -6680,6 +6693,7 @@ export async function runMigrations(
     await addBlogPostSources();
     await addBankReceipts();
     await addEstimateAdjustments();
+    await addContentMapSchema();
     await addGoogleAdsChangePreviews();
     await addContractDraftReview();
     await addGoogleAdsMilestoneAudits();

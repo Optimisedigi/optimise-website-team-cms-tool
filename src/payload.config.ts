@@ -65,6 +65,13 @@ import { GoogleSearchStatusIncidents } from "./collections/GoogleSearchStatusInc
 import { GscIndexingAudits } from "./collections/GscIndexingAudits";
 import { SeoMigrationChecks } from "./collections/SeoMigrationChecks";
 import { InternalLinkSuggestions } from "./collections/InternalLinkSuggestions";
+import { ContentMapSnapshots } from "./collections/ContentMapSnapshots";
+import { ContentMapSuggestions } from "./collections/ContentMapSuggestions";
+import { ContentMapQuestions } from "./collections/ContentMapQuestions";
+import { ContentMapCitations } from "./collections/ContentMapCitations";
+import { ContentMapResearch } from "./collections/ContentMapResearch";
+import { ContentMapGsc } from "./collections/ContentMapGsc";
+import { ContentMapPlacementChecks } from "./collections/ContentMapPlacementChecks";
 import { NegativeSweepCandidates } from "./collections/NegativeSweepCandidates";
 import { SearchQueryVocabulary } from "./collections/SearchQueryVocabulary";
 import { SearchQueryReviewGroups } from "./collections/SearchQueryReviewGroups";
@@ -185,6 +192,13 @@ export default buildConfig({
     BlogPosts, BlogPrompts, BlogIdeas, BlogSyncEvents, JobPosts, Media,
     // SEO
     InternalLinkSuggestions,
+    ContentMapSnapshots,
+    ContentMapSuggestions,
+    ContentMapQuestions,
+    ContentMapCitations,
+    ContentMapResearch,
+    ContentMapGsc,
+    ContentMapPlacementChecks,
     // Audits
     SeoAudits, SeoAuditProposals, CroAudits, GoogleAdsAudits, GoogleAdsAuditSnapshots, GoogleAdsMilestoneAudits, TagSetupAudits, KeywordSnapshots, CompetitorAnalyses, ContentResearches, GscAlerts, GscIndexingAudits, SeoMigrationChecks, NegativeSweepCandidates, SearchQueryVocabulary, SearchQueryReviewGroups, NegativeKeywordLists, KeywordDeepDiveSessions, MonthlyKeywordSelections, SiteHealthReports,
     // Reports

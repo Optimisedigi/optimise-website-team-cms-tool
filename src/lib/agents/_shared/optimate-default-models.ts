@@ -53,6 +53,8 @@ export interface OptiMateDefaultModels {
   searchTermResearchModel?: CanonicalModelName;
   /** Optional task-specific model for Weekly Negative Sweep classification. */
   negativeSweepModel?: CanonicalModelName;
+  /** Optional task-specific model for Content Map link edits and Write next ideas. */
+  contentMapModel?: CanonicalModelName;
   /** Gemini Imagen model used for blog hero image generation. */
   blogImageGenerationModel: string;
   /** Approximate token budget for chat history before compacting older turns. */
@@ -145,6 +147,7 @@ export async function getOptiMateDefaultModels(
       emailAssistantModel?: unknown;
       searchTermResearchModel?: unknown;
       negativeSweepModel?: unknown;
+      contentMapModel?: unknown;
       blogImageGenerationModel?: unknown;
       voiceRealtimeModel?: unknown;
       voiceApiKeyEnabled?: unknown;
@@ -159,6 +162,7 @@ export async function getOptiMateDefaultModels(
     const emailAssistantModel = resolvePickerModel(global?.emailAssistantModel);
     const searchTermResearchModel = resolvePickerModel(global?.searchTermResearchModel);
     const negativeSweepModel = resolvePickerModel(global?.negativeSweepModel);
+    const contentMapModel = resolvePickerModel(global?.contentMapModel);
 
     return {
       defaultChatModel: resolvePickerModel(global?.defaultChatModel) ?? DEFAULT_CHAT_MODEL,
@@ -190,6 +194,7 @@ export async function getOptiMateDefaultModels(
       ...(emailAssistantModel ? { emailAssistantModel } : {}),
       ...(searchTermResearchModel ? { searchTermResearchModel } : {}),
       ...(negativeSweepModel ? { negativeSweepModel } : {}),
+      ...(contentMapModel ? { contentMapModel } : {}),
     };
   } catch (err) {
     console.warn(
