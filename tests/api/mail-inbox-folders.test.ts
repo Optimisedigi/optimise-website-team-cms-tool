@@ -174,7 +174,7 @@ describe('GET /api/mail/inbox folders', () => {
 
   it('lists Sent and Drafts without the hidden-sender filter', async () => {
     expect((await GET(request('?folder=sent&q=budget'))).status).toBe(200)
-    expect(listFolderThreads).toHaveBeenLastCalledWith('tok', 'sent', { pageToken: undefined, q: 'budget', maxResults: 20 })
+    expect(listFolderThreads).toHaveBeenLastCalledWith('tok', 'sent', { pageToken: undefined, q: '{budget to:budget cc:budget bcc:budget}', maxResults: 20 })
     expect(await (await GET(request('?folder=drafts&pageToken=p2'))).json()).toMatchObject({ folder: 'drafts' })
     expect(listFolderThreads).toHaveBeenLastCalledWith('tok', 'drafts', { pageToken: 'p2', q: undefined, maxResults: 20 })
   })

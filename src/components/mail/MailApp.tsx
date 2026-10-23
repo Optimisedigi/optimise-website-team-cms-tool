@@ -33,8 +33,18 @@ import type { SenderClientOverride } from '../../lib/mail/client-matching'
 import { normaliseSenderEntry, senderClientFor } from '../../lib/mail/sender-clients'
 import MailStepNav from './MailStepNav'
 import { InboxSearch } from './InboxSearch'
-import { searchSenderAddresses, type MailContact } from '../../lib/mail/contacts-shared'
-import { loadSavedPeople, savePeople } from '../../lib/mail/people-cache'
+import { searchSenderAddresses, suggestionPeople, type MailContact } from '../../lib/mail/contacts-shared'
+import { loadSavedPeople, peopleNeedRefresh, savePeople } from '../../lib/mail/people-cache'
+import type { MailSearchScope } from '../../lib/mail/inbox-search'
+import {
+  COMPOSE_POPOUT_PARAM,
+  composePopoutPath,
+  isPopoutReady,
+  parsePopoutId,
+  popoutReadyMessage,
+  popoutStateMessage,
+  readPopoutState,
+} from '../../lib/mail/compose-popout'
 import { forwardStartHtml, forwardSubject, hasOtherParticipants, replyRecipients } from '../../lib/mail/reply-actions'
 import { exportFileName, messageToMarkdown, saveFile, threadToMarkdown } from '../../lib/mail/export'
 import type { MailTag } from '../../lib/mail/tags'
@@ -71,6 +81,11 @@ const ComposeWindow = lazy(loadComposeWindow)
  * refreshed in the background.
  */
 const SEARCH_PEOPLE_WAIT_MS = 300
+
+/** How long Mail waits for a popped-out compose window to load before keeping the email here. */
+const POPOUT_HANDOFF_MS = 60_000
+/** How long a popped-out compose window waits for its email from the Mail page. */
+const POPOUT_RECEIVE_MS = 15_000
 
 /** Threads per bulk Mark as read / unread request (the /api/mail/modify cap). */
 const MODIFY_THREADS_PER_REQUEST = 50
@@ -384,11 +399,14 @@ export default function MailApp({ clients, windowMode = false }: { clients: Mail
   const [syncNote, setSyncNote] = useState('')
   const [search, setSearch] = useState('')
   const [query, setQuery] = useState('')
-  // People for the Inbox search (suggestions and part-name matching), loaded
-  // once per account when the search box is first focused.
+  // People for the search box (suggestions and part-name matching): saved in
+  // this browser, loaded once the list shows and refreshed now and then.
   const [searchSenders, setSearchSenders] = useState<MailContact[]>([])
+  // Where the search looks (Everything / Name or address / Subject / Email text).
+  const [searchScope, setSearchScope] = useState<MailSearchScope>('all')
+  const searchScopeRef = useRef<MailSearchScope>('all')
   const searchPeople = useRef<{ account: string; promise: Promise<SearchPeople> } | null>(null)
-  // Extra `from:` addresses for the current Inbox search (see searchSenderAddresses).
+  // Extra person addresses for the current search (see searchSenderAddresses).
   const querySenders = useRef<string[]>([])
   // The tag (Gmail label) whose emails the Inbox list shows instead of the inbox; null = the inbox.
   const [tagView, setTagView] = useState<MailTag | null>(null)
@@ -430,6 +448,9 @@ export default function MailApp({ clients, windowMode = false }: { clients: Mail
   }
 
   const [composer, setComposer] = useState<(ComposeState & { key: number }) | null>(null)
+  // A compose window popped out into this browser window (`?compose=`): waiting
+  // for its email, writing it, or lost (the Mail page that opened it is gone).
+  const [popoutStatus, setPopoutStatus] = useState<'waiting' | 'open' | 'lost' | 'done' | null>(null)
   const [summary, setSummary] = useState<{ email: ThreadMessage; text: string; model: string; busy: boolean; note: string } | null>(null)
   const [assignClientId, setAssignClientId] = useState('')
   // Stored-email cleanup (hidden senders / automated mail): counts first, delete on confirm.
@@ -465,9 +486,10 @@ export default function MailApp({ clients, windowMode = false }: { clients: Mail
         params.set('folder', opts.folder)
         if (opts.pageToken) params.set('pageToken', opts.pageToken)
         if (opts.q) params.set('q', opts.q)
-        if (opts.q && opts.folder === 'inbox' && querySenders.current.length > 0) {
+        if (opts.q && querySenders.current.length > 0) {
           params.set('senders', querySenders.current.join(','))
         }
+        if (opts.q && searchScopeRef.current !== 'all') params.set('scope', searchScopeRef.current)
         if (opts.folder === 'inbox' && tagRef.current) params.set('tag', tagRef.current.id)
         const data = await api<{
           threads: ThreadRow[]
@@ -527,25 +549,33 @@ export default function MailApp({ clients, windowMode = false }: { clients: Mail
   }, [showError])
 
   /**
-   * People for the Inbox search, loaded once per account (a failed load is
-   * tried again next time). Searching works without them, just without
-   * suggestions or part-name matching.
+   * People for the search box, loaded once per account (a failed load is
+   * tried again next time). A list saved in this browser is used at once, and
+   * only fetched from Gmail again once it is a few hours old (see
+   * people-cache). Searching works without them, just without suggestions or
+   * part-name matching.
    */
   const loadSearchPeople = useCallback((): Promise<SearchPeople> => {
     const forAccount = accountRef.current
     if (searchPeople.current?.account === forAccount) return searchPeople.current.promise
     const storage = browserStorage()
     const saved = loadSavedPeople(storage, forAccount, Date.now())
+    if (saved && !peopleNeedRefresh(saved, Date.now())) {
+      setSearchSenders(suggestionPeople(saved))
+      const promise = Promise.resolve<SearchPeople>(saved)
+      searchPeople.current = { account: forAccount, promise }
+      return promise
+    }
     const fresh = apiRequest<{ contacts?: unknown; senders?: unknown }>('/api/mail/contacts', undefined, forAccount).then((data) => {
       const people = { contacts: cleanContacts(data.contacts), senders: cleanContacts(data.senders) }
       savePeople(storage, forAccount, people, Date.now())
-      if (accountRef.current === forAccount) setSearchSenders(people.senders)
+      if (accountRef.current === forAccount) setSearchSenders(suggestionPeople(people))
       return people
     })
     if (saved) {
       // Use the saved list now; the fresh one replaces it when it arrives (a failed refresh keeps the saved one).
-      setSearchSenders(saved.senders)
-      const promise = Promise.resolve(saved)
+      setSearchSenders(suggestionPeople(saved))
+      const promise = Promise.resolve<SearchPeople>(saved)
       searchPeople.current = { account: forAccount, promise }
       fresh
         .then((people) => {
@@ -563,15 +593,16 @@ export default function MailApp({ clients, windowMode = false }: { clients: Mail
   }, [])
 
   /**
-   * Runs the search box. In the Inbox, part of a name or address ("rebe") also
-   * lists mail from the people it matches, since Gmail only matches whole words.
+   * Runs the search box. Part of a name or address ("rebe") also lists mail
+   * from (Inbox) or to (Sent, Drafts) the people it matches, since Gmail only
+   * matches whole words; not when searching only the subject or text.
    */
   const runSearch = useCallback(
     async (value: string) => {
       const typed = value.trim()
       querySenders.current = []
       setQuery(value)
-      if (folder !== 'inbox' || !typed) {
+      if (!typed || (searchScopeRef.current !== 'all' && searchScopeRef.current !== 'person')) {
         void loadInbox({ folder, q: value })
         return
       }
@@ -714,10 +745,11 @@ export default function MailApp({ clients, windowMode = false }: { clients: Mail
     }
     void loadCounts()
     void loadInbox({ folder: 'inbox' }).then(() => {
-      void runSync()
+      // The people list (search and To suggestions) after the sync, so the Gmail reads don't pile up.
+      void runSync().finally(() => void loadSearchPeople())
       void loadComposeWindow().catch(() => undefined)
     })
-  }, [runSync, loadInbox, loadCounts, windowMode])
+  }, [runSync, loadInbox, loadCounts, loadSearchPeople, windowMode])
 
   // Keep the badges current while the tab is open.
   useEffect(() => {
@@ -1120,6 +1152,80 @@ export default function MailApp({ clients, windowMode = false }: { clients: Mail
   useEffect(() => {
     if (windowSubject !== undefined) document.title = `${windowSubject || '(no subject)'} · Mail`
   }, [windowSubject])
+
+  /**
+   * Compose window → "Open in new window": opens the pop-out window now (so
+   * the browser allows it), and once it says it is ready, saves the email and
+   * hands it over (see compose-popout); this page's compose window then closes.
+   */
+  function popOutComposer(snapshot: () => Promise<ComposeState>) {
+    const id = crypto.randomUUID()
+    const forAccount = composer?.account ?? accountRef.current
+    const popup = window.open(composePopoutPath(id, forAccount), `mail-compose-${id}`, 'popup,width=900,height=900')
+    if (!popup) {
+      setActionNote('Your browser blocked the new window. Allow pop-ups for this site and try again.')
+      return
+    }
+    const stop = () => {
+      window.removeEventListener('message', onMessage)
+      window.clearTimeout(timer)
+    }
+    const onMessage = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin || event.source !== popup || !isPopoutReady(event.data, id)) return
+      stop()
+      void snapshot()
+        .then((state) => {
+          popup.postMessage(popoutStateMessage(id, state), window.location.origin)
+          setComposer(null)
+          setActionNote('The email is open in its own window.')
+        })
+        .catch((err: unknown) => setActionNote(`Could not move the email to the new window: ${(err as Error).message}`))
+    }
+    // Never loaded (closed straight away): the email just stays here.
+    const timer = window.setTimeout(stop, POPOUT_HANDOFF_MS)
+    window.addEventListener('message', onMessage)
+  }
+
+  // The pop-out window itself: ask the Mail page that opened it for the email.
+  useEffect(() => {
+    if (!windowMode) return
+    const id = parsePopoutId(new URLSearchParams(window.location.search).get(COMPOSE_POPOUT_PARAM))
+    if (!id) return
+    document.title = 'New message · Mail'
+    const opener = window.opener as Window | null
+    if (!opener) {
+      setPopoutStatus('lost')
+      return
+    }
+    setPopoutStatus('waiting')
+    const onMessage = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin || event.source !== opener) return
+      const state = readPopoutState(event.data, id)
+      if (!state) return
+      stop()
+      setComposer({ ...state, key: ++composeKey.current })
+      setPopoutStatus('open')
+      document.title = `${state.subject.trim() || (state.mode === 'reply' ? 'Reply' : 'New message')} · Mail`
+    }
+    const timer = window.setTimeout(() => {
+      stop()
+      setPopoutStatus((status) => (status === 'waiting' ? 'lost' : status))
+    }, POPOUT_RECEIVE_MS)
+    function stop() {
+      window.removeEventListener('message', onMessage)
+      window.clearTimeout(timer)
+    }
+    window.addEventListener('message', onMessage)
+    opener.postMessage(popoutReadyMessage(id), window.location.origin)
+    return stop
+  }, [windowMode])
+
+  // Sent, scheduled, discarded or closed in the pop-out: its window has done its job.
+  useEffect(() => {
+    if (popoutStatus !== 'open' || composer) return
+    setPopoutStatus('done')
+    window.close()
+  }, [popoutStatus, composer])
 
   /** Open the email in the reading pane in its own browser window. */
   function openInNewWindow(threadId: string) {
@@ -1978,6 +2084,7 @@ export default function MailApp({ clients, windowMode = false }: { clients: Mail
       {showTriagePanel ? (
         <TriagePanel
           key={activeAccount}
+          account={activeAccount}
           api={api}
           onApplied={() => void refresh()}
           onClose={() => setShowTriagePanel(false)}
@@ -2176,9 +2283,13 @@ export default function MailApp({ clients, windowMode = false }: { clients: Mail
             setSearch(contact.email)
             void runSearch(contact.email)
           }}
-          senders={folder === 'inbox' ? searchSenders : []}
-          onWantSenders={() => {
-            if (folder === 'inbox') void loadSearchPeople()
+          senders={searchSenders}
+          onWantSenders={() => void loadSearchPeople()}
+          scope={searchScope}
+          onScopeChange={(next) => {
+            searchScopeRef.current = next
+            setSearchScope(next)
+            if (search.trim()) void runSearch(search)
           }}
           label={tagView ? `Search tag ${tagView.name}` : `Search ${FOLDER_LABELS[folder].toLowerCase()}`}
         />
@@ -2336,7 +2447,24 @@ export default function MailApp({ clients, windowMode = false }: { clients: Mail
               </button>
             </div>
           ) : null}
-          {!selectedThreadId && windowMode ? (
+          {popoutStatus !== null ? (
+            <div className={styles.empty}>
+              <p>
+                {popoutStatus === 'waiting'
+                  ? 'Opening your email…'
+                  : popoutStatus === 'open'
+                    ? ''
+                    : popoutStatus === 'done'
+                      ? actionNote || 'Done.'
+                      : 'This window no longer has the email. If you were writing it here, what you typed is in Gmail Drafts; otherwise it is still open in the Mail window you came from.'}
+              </p>
+              {popoutStatus === 'lost' || popoutStatus === 'done' ? (
+                <button type="button" className={styles.btn} onClick={() => window.close()}>
+                  Close window
+                </button>
+              ) : null}
+            </div>
+          ) : !selectedThreadId && windowMode ? (
             lastDeleted ? (
               <div className={styles.empty}>
                 <p>Deleted “{lastDeleted.thread.subject || '(no subject)'}”. It stays in Gmail’s Bin for 30 days.</p>
@@ -2679,6 +2807,8 @@ export default function MailApp({ clients, windowMode = false }: { clients: Mail
           onSaveDraft={saveComposedDraft}
           onDeleteDraft={(draftId) => deleteComposedDraft(draftId, composer.account ?? '')}
           signatureHtml={signatureHtml}
+          onPopOut={!windowMode && !isPhone ? popOutComposer : undefined}
+          popout={popoutStatus === 'open'}
         />
         </Suspense>
       ) : null}

@@ -11,7 +11,7 @@ import {
 import { matchMessageToClient } from "@/lib/mail/client-matching";
 import { loadClientDomainIndex } from "@/lib/mail/store";
 import { hiddenSendersQuery, isHiddenSender, loadHiddenSenders } from "@/lib/mail/hidden-senders";
-import { inboxSearchQuery, parseSearchSenders } from "@/lib/mail/inbox-search";
+import { mailSearchQuery, parseSearchScope, parseSearchSenders } from "@/lib/mail/inbox-search";
 import { parseTagId } from "@/lib/mail/tags";
 
 /** Your own sent messages never bring a thread into the inbox list. */
@@ -21,7 +21,7 @@ import { loadSenderClients } from "@/lib/mail/sender-clients";
 import { gmailErrorResponse, requireGmailToken, requireMailUser } from "@/lib/mail/route-helpers";
 
 /**
- * GET /api/mail/inbox?folder=inbox|sent|drafts&pageToken=&q=&tag=
+ * GET /api/mail/inbox?folder=inbox|sent|drafts&pageToken=&q=&scope=&senders=&tag=
  *
  * `tag` (inbox only) is a Mail tag's Gmail label id ("Label_…"): the list
  * shows that tag's emails instead of the inbox, archived ones included,
@@ -49,10 +49,12 @@ import { gmailErrorResponse, requireGmailToken, requireMailUser } from "@/lib/ma
  * there. The starred client senders (dashboard panel filter) and the sender →
  * client choices are returned too.
  *
- * Inbox search matches the sender's address as well as the subject (see
- * inboxSearchQuery), plus the addresses in `senders` (people whose name or
- * address starts with the typed text, matched by the Mail page, since Gmail
- * only matches whole words); Sent and Drafts pass the search to Gmail as typed.
+ * The search (`q`) looks where `scope` says: all (the default), person,
+ * subject or body (see mailSearchQuery). It matches the person (the sender
+ * in the Inbox, the recipients in Sent / Drafts) as well as the words, plus
+ * the addresses in `senders` (people whose name or address starts with the
+ * typed text, matched by the Mail page, since Gmail only matches whole words).
+ * Hand-written Gmail searches are passed through as typed.
  *
  * The inbox lists mail from other people only: its Gmail search leaves out
  * your own sent messages (`-in:sent`, matched per message, so a thread you
@@ -74,6 +76,8 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const pageToken = req.nextUrl.searchParams.get("pageToken") ?? undefined;
   const search = (req.nextUrl.searchParams.get("q") ?? "").slice(0, 200);
   const searchSenders = parseSearchSenders(req.nextUrl.searchParams.get("senders"));
+  const searchScope = parseSearchScope(req.nextUrl.searchParams.get("scope"));
+  const searchQuery = mailSearchQuery(search, { folder, scope: searchScope, senderAddresses: searchSenders });
   const [hiddenSenders, clientSenders, senderClients] = await Promise.all([
     loadHiddenSenders(ctx.payload, ctx.user.id),
     loadClientSenders(ctx.payload, ctx.user.id),
@@ -121,7 +125,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     };
     let nextPageToken: string | null;
     if (folder === "inbox") {
-      const base = join(inboxSearchQuery(search, searchSenders), hiddenSendersQuery(hiddenSenders), INBOX_EXCLUDE_OWN_MAIL) ?? "";
+      const base = join(searchQuery, hiddenSendersQuery(hiddenSenders), INBOX_EXCLUDE_OWN_MAIL) ?? "";
       const readQuery = join(base, "-is:unread");
       const page = parseInboxPageToken(pageToken);
       if (page.part === "unread") {
@@ -162,7 +166,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         nextPageToken = read.exhausted ? null : inboxPageToken("read", read.token);
       }
     } else {
-      const result = await fill(join(search), pageToken, MAIL_LIST_PAGE_SIZE, MAIL_LIST_MAX_GMAIL_CALLS, seen);
+      const result = await fill(join(searchQuery), pageToken, MAIL_LIST_PAGE_SIZE, MAIL_LIST_MAX_GMAIL_CALLS, seen);
       threads.push(...result.rows);
       nextPageToken = result.exhausted ? null : result.token;
     }

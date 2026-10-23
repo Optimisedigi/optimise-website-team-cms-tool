@@ -31,6 +31,12 @@ describe('POST /api/mail/triage/apply', () => {
     expect(batchModifyMessages).toHaveBeenCalledWith('tok', ['m1', 'm2'], { remove: ['INBOX'] })
   })
 
+  it('deletes by moving to the Bin (TRASH label), never deleting for good', async () => {
+    expect((await POST(post({ messageIds: ['m1', 'm2'], action: 'trash' }))).status).toBe(200)
+    expect(batchModifyMessages).toHaveBeenCalledWith('tok', ['m1', 'm2'], { add: ['TRASH'], remove: ['INBOX'] })
+    expect((await POST(post({ messageIds: ['m1'], action: 'delete' }))).status).toBe(400)
+  })
+
   it('tags by adding the user label, removing nothing', async () => {
     expect((await POST(post({ messageIds: ['m1', 'm1', 'm3'], action: 'tag', tagId: 'Label_42' }))).status).toBe(200)
     expect(batchModifyMessages).toHaveBeenCalledWith('tok', ['m1', 'm3'], { add: ['Label_42'] })

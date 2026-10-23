@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { inboxSearchQuery, parseSearchSenders } from '@/lib/mail/inbox-search'
+import { inboxSearchQuery, mailSearchQuery, parseSearchScope, parseSearchSenders } from '@/lib/mail/inbox-search'
 
 describe('inboxSearchQuery', () => {
   it('matches a full sender address as well as free text', () => {
@@ -60,5 +60,29 @@ describe('parseSearchSenders', () => {
     expect(parseSearchSenders(' A@x.com, a@x.com,bad,b@y.co ')).toEqual(['a@x.com', 'b@y.co'])
     const many = Array.from({ length: 15 }, (_, i) => `p${i}@x.com`).join(',')
     expect(parseSearchSenders(many)).toHaveLength(10)
+  })
+})
+
+describe('mailSearchQuery (Search in)', () => {
+  it('searches only the person, the subject or the text when asked', () => {
+    expect(mailSearchQuery('rebe', { folder: 'inbox', scope: 'person', senderAddresses: ['rebekah@x.com'] })).toBe('{from:rebe from:rebekah@x.com}')
+    expect(mailSearchQuery('weekly report', { folder: 'inbox', scope: 'subject' })).toBe('subject:(weekly report)')
+    expect(mailSearchQuery('invoice', { folder: 'inbox', scope: 'body', senderAddresses: ['rebekah@x.com'] })).toBe('invoice')
+  })
+
+  it('keeps the inbox default as before, and matches recipients in Sent and Drafts', () => {
+    expect(mailSearchQuery('rebe', { folder: 'inbox', senderAddresses: ['rebekah@x.com'] })).toBe(inboxSearchQuery('rebe', ['rebekah@x.com']))
+    expect(mailSearchQuery('carli', { folder: 'sent', senderAddresses: ['carli@x.com'] })).toBe(
+      '{carli to:carli cc:carli bcc:carli to:carli@x.com cc:carli@x.com}',
+    )
+    expect(mailSearchQuery('carli', { folder: 'drafts', scope: 'person' })).toBe('{to:carli cc:carli bcc:carli}')
+  })
+
+  it('passes Gmail syntax through whatever the scope, and reads the scope parameter safely', () => {
+    expect(mailSearchQuery('from:jo', { folder: 'inbox', scope: 'subject' })).toBe('from:jo')
+    expect(mailSearchQuery('  ', { folder: 'inbox', scope: 'subject' })).toBe('')
+    expect(parseSearchScope('subject')).toBe('subject')
+    expect(parseSearchScope('} OR in:trash')).toBe('all')
+    expect(parseSearchScope(null)).toBe('all')
   })
 })

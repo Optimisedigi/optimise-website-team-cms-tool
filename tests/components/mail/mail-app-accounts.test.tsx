@@ -304,6 +304,33 @@ describe('MailApp layout', () => {
     expect(searches()).toHaveLength(1)
   })
 
+  it('searches only the subject when Search in is Subject, without person matches or suggestions', async () => {
+    render(<MailApp clients={CLIENTS} />)
+    await screen.findByText('Hello there')
+    const search = screen.getByRole('combobox', { name: 'Search inbox' })
+    fireEvent.change(search, { target: { value: 'inthe' } })
+    calls = []
+    fireEvent.change(screen.getByRole('combobox', { name: 'Search in' }), { target: { value: 'subject' } })
+    const searches = () => calls.filter((call) => call.url.startsWith('/api/mail/inbox')).map((call) => new URL(call.url, 'https://cms.test'))
+    await waitFor(() => expect(searches()).toHaveLength(1))
+    expect(searches()[0]?.searchParams.get('q')).toBe('inthe')
+    expect(searches()[0]?.searchParams.get('scope')).toBe('subject')
+    expect(searches()[0]?.searchParams.get('senders')).toBeNull()
+    fireEvent.focus(search)
+    fireEvent.change(search, { target: { value: 'rebe' } })
+    expect(screen.queryByRole('option', { name: /Rebekah Sadler/ })).toBeNull()
+  })
+
+  it('suggests people you email as well as regular senders, from an @ and a domain', async () => {
+    render(<MailApp clients={CLIENTS} />)
+    await screen.findByText('Hello there')
+    const search = screen.getByRole('combobox', { name: 'Search inbox' })
+    fireEvent.focus(search)
+    fireEvent.change(search, { target: { value: '@inthe' } })
+    expect(await screen.findByRole('option', { name: /Rebekah Sadler/ })).toBeTruthy()
+    expect(screen.getByRole('option', { name: /Carli Markunsky/ })).toBeTruthy()
+  })
+
   it('saves the people list from Gmail for next time', async () => {
     render(<MailApp clients={CLIENTS} />)
     await screen.findByText('Hello there')

@@ -52,9 +52,10 @@ export function finishedRecipientAddresses(value: string): string[] {
 /**
  * Contacts matching what is typed, in the server's ranking (people you email
  * most first). A contact matches when the text starts its address, the part
- * after the @, its name, or any word of its name. Fewer than
- * CONTACT_MIN_QUERY letters, or text that is already a full address, gives
- * no suggestions. Addresses already in the field are left out.
+ * after the @, its name, or any word of its name; text starting with "@"
+ * ("@client.c") matches the part after the @. Fewer than CONTACT_MIN_QUERY
+ * letters, or text that is already a full address, gives no suggestions.
+ * Addresses already in the field are left out.
  */
 export function matchMailContacts(
   contacts: readonly MailContact[],
@@ -70,6 +71,11 @@ export function matchMailContacts(
     if (contact.email === query) return [];
     const domain = contact.email.split("@")[1] ?? "";
     const name = contact.name.toLowerCase();
+    if (query.startsWith("@")) {
+      if (domain.startsWith(query.slice(1))) out.push(contact);
+      if (out.length >= limit) break;
+      continue;
+    }
     const hit =
       contact.email.startsWith(query) ||
       domain.startsWith(query) ||
@@ -91,6 +97,21 @@ export function applyRecipient(value: string, token: RecipientToken, email: stri
   const prefix = head ? `${head} ` : "";
   const inserted = `${prefix}${email}, `;
   return { value: inserted + tail, caret: inserted.length };
+}
+
+/**
+ * Everyone the Mail search box can suggest: regular senders first, then the
+ * rest of the people in your sent and received mail, each address once.
+ */
+export function suggestionPeople(people: { senders: readonly MailContact[]; contacts: readonly MailContact[] }): MailContact[] {
+  const seen = new Set<string>();
+  const out: MailContact[] = [];
+  for (const contact of [...people.senders, ...people.contacts]) {
+    if (seen.has(contact.email)) continue;
+    seen.add(contact.email);
+    out.push(contact);
+  }
+  return out;
 }
 
 /** Most people one Inbox search adds as extra `from:` matches (see inbox-search.ts). */

@@ -83,13 +83,19 @@
   position: sticky;
   bottom: 0;
   margin: 0 -14px -14px;
-  padding: 10px 14px;
+  /* Room on the right for the OptiMate button and client email alert, which float over the corner. */
+  padding: 10px 140px 10px 14px;
   border-top: 1px solid var(--mail-border);
   background: var(--mail-soft);
 }
 
 .footer .muted {
-  margin-right: auto;
+  margin-right: 8px;
+}
+
+.danger {
+  border-color: #c0392b;
+  color: #c0392b;
 }
 
 .btn {
@@ -359,6 +365,10 @@
 }
 
 @media (max-width: 640px) {
+  .footer {
+    padding-right: 14px;
+  }
+
   .stats {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }

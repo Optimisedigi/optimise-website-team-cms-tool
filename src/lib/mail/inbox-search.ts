@@ -54,3 +54,51 @@ export function inboxSearchQuery(raw: string, senderAddresses: readonly string[]
     .join("");
   return `{${group} from:${group}${extra}}`;
 }
+
+/**
+ * What the search box looks in, picked next to it:
+ *  - "all": the person (sender in the Inbox, recipients in Sent / Drafts),
+ *    the subject and the email's text.
+ *  - "person": only the person's name or address (part of a name matches
+ *    through the matched addresses, as above).
+ *  - "subject": only words in the subject line.
+ *  - "body": words in the email's text. Gmail has no body-only search, so
+ *    this is its plain word search (which also covers the subject), without
+ *    the extra name/address matches.
+ */
+export const MAIL_SEARCH_SCOPES = ["all", "person", "subject", "body"] as const;
+export type MailSearchScope = (typeof MAIL_SEARCH_SCOPES)[number];
+
+/** The `scope` request parameter; anything else (or nothing) is "all". */
+export function parseSearchScope(param: string | null | undefined): MailSearchScope {
+  return MAIL_SEARCH_SCOPES.find((scope) => scope === param) ?? "all";
+}
+
+/**
+ * Gmail search for the Mail search box in any folder, limited to `scope`.
+ * Hand-written Gmail syntax is passed through unchanged, whatever the scope.
+ * In the Inbox the person is the sender (`from:`); in Sent and Drafts it is
+ * who the email went to (`to:` / `cc:` / `bcc:`). Sent and Drafts searched
+ * with "all" stay plain Gmail text plus the recipient match.
+ */
+export function mailSearchQuery(
+  raw: string,
+  options: { folder: string; scope?: MailSearchScope; senderAddresses?: readonly string[] },
+): string {
+  const terms = raw.trim().replace(/\s+/g, " ");
+  if (!terms || GMAIL_SYNTAX.test(terms)) return terms;
+  const scope = options.scope ?? "all";
+  const group = terms.includes(" ") ? `(${terms})` : terms;
+  if (scope === "subject") return `subject:${group}`;
+  if (scope === "body") return group;
+  const inbox = options.folder === "inbox";
+  const people = parseSearchSenders((options.senderAddresses ?? []).join(",")).filter((address) => address !== terms.toLowerCase());
+  const personFields = inbox ? ["from"] : ["to", "cc", "bcc"];
+  const personParts = [
+    ...personFields.map((field) => `${field}:${group}`),
+    ...people.flatMap((address) => (inbox ? [`from:${address}`] : [`to:${address}`, `cc:${address}`])),
+  ];
+  if (scope === "person") return `{${personParts.join(" ")}}`;
+  if (inbox) return inboxSearchQuery(raw, options.senderAddresses ?? []);
+  return `{${group} ${personParts.join(" ")}}`;
+}

@@ -6,13 +6,17 @@ import type { MailContact } from "./contacts-shared";
  * only; see /api/mail/contacts). Deterministic: same messages in, same list
  * out. Rules (documented in docs/mail.md):
  *  - Sent mail: everyone you emailed (To, Cc) counts.
- *  - Received mail: the people on it (From, To, Cc) count, unless the email
- *    is marketing or automated: Gmail's Promotions / Social / Updates / Forums
- *    tabs, bulk or auto headers (List-Unsubscribe, Precedence, ...), or a
- *    no-reply style sender.
+ *  - Received mail: only the sender (From) counts, and only once they have
+ *    emailed you more than once (MIN_RECEIVED_EMAILS). Marketing and
+ *    automated email never counts: Gmail's Promotions / Social / Updates /
+ *    Forums tabs and Spam, bulk or auto headers (List-Unsubscribe,
+ *    Precedence, ...), a no-reply style sender, or spam signs (see
+ *    looksLikeSpamSender, isSpamLikeMessage).
  *  - Account and marketing mailboxes (no-reply, notifications, billing,
  *    accounts, receipts, newsletter, ...) are never suggested, whatever the
- *    email. Your own addresses are never suggested.
+ *    email. Shared inboxes (hello@, info@, team@, support@, ...) are only
+ *    suggested when you have emailed them yourself. Your own addresses are
+ *    never suggested.
  *  - People you emailed rank above people who only emailed you; then more
  *    emails first; then the most recent; then alphabetical.
  */
@@ -36,6 +40,47 @@ const NON_PERSONAL_CATEGORIES = new Set(["CATEGORY_PROMOTIONS", "CATEGORY_SOCIAL
 /** Account/marketing mailboxes that are not a person, on top of the no-reply list. */
 const ACCOUNT_LOCAL_PART_RE =
   /^(?:accounts?|billing|invoices?|receipts?|statements?|newsletters?|marketing|promo(?:tions)?|news|digest|updates?|security|verify|verification|confirm(?:ation)?|subscriptions?|unsubscribe|reply|donotreply|automated|system|daemon|calendar-notification|drive-shares-dm-noreply)(?:[._+-].*)?$/i;
+
+/**
+ * Shared inboxes rather than a person. Left out unless you emailed them
+ * yourself (then you chose that address, so it stays suggestible).
+ */
+const SHARED_INBOX_LOCAL_PART_RE =
+  /^(?:hello|hi|hey|info|information|team|support|help|helpdesk|contact|contactus|enquir(?:y|ies)|inquir(?:y|ies)|sales|admin|office|mail|general|customerservice|customercare|care|service|feedback|events|careers|jobs|press|media)$/i;
+
+/** Sending-service subdomains used for bulk mail ("news.brand.com", "em.shop.com"). */
+const BULK_SUBDOMAIN_RE =
+  /^(?:e|em|email|emails|mail|mailer|mailing|mg|mkt|mktg|news|newsletters?|marketing|promo|bounce|bounces|send|sendgrid|sg|mc|campaigns?|offers|deals|info|engage|crm|hs|t)\./i;
+
+/** A bulk-looking first label only counts on a subdomain ("news.brand.com", not "news.com"). */
+const BULK_SUBDOMAIN_NEEDS_LABELS = 3;
+
+/**
+ * True when an address looks generated or sent by a bulk mailer rather than
+ * typed by a person: long digit runs or tracking characters in the mailbox
+ * name, very long mailbox names, or a bulk-mail subdomain. Deterministic.
+ */
+export function looksLikeSpamSender(email: string): boolean {
+  const [local = "", domain = ""] = email.split("@");
+  if (/\d{5,}/.test(local) || /[=#$!]/.test(local) || local.length > 40) return true;
+  // Hex-like tracking ids: 12+ letters/digits with no vowels at all ("x7fk3q9z2wbt").
+  if (/^[^aeiou._+-]{12,}$/i.test(local) && /\d/.test(local)) return true;
+  if (BULK_SUBDOMAIN_RE.test(domain) && domain.split(".").length >= BULK_SUBDOMAIN_NEEDS_LABELS) {
+    // "mail.com.au"-style country suffixes aside, the rest must still be a domain.
+    const rest = domain.split(".").slice(1);
+    if (!(rest.length === 2 && /^(?:com|net|org|co|gov|edu)$/.test(rest[0] ?? ""))) return true;
+  }
+  return false;
+}
+
+/**
+ * Received mail with spam signs beyond Gmail's own Spam folder: not addressed
+ * to anyone (no To/Cc, or "undisclosed recipients"), so it was sent in bulk.
+ */
+export function isSpamLikeMessage(message: Pick<ContactSourceMessage, "to" | "cc">): boolean {
+  const recipients = `${message.to} ${message.cc}`.trim();
+  return recipients === "" || /undisclosed[\s-]*recipients/i.test(recipients);
+}
 
 const EMAIL_RE = /^[a-z0-9._%+'-]+@[a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,}$/;
 
@@ -75,6 +120,19 @@ export function parseAddressList(header: string | null | undefined): MailContact
   return out;
 }
 
+/** A shared inbox (hello@, info@, team@, ...): suggested only if you emailed it. */
+export function isSharedInboxAddress(email: string): boolean {
+  return SHARED_INBOX_LOCAL_PART_RE.test(email.split("@")[0] ?? "");
+}
+
+/** Received mail whose sender should never be learned (marketing, automated or spam-like). */
+function isUntrustedReceived(message: ContactSourceMessage, sender: MailContact): boolean {
+  return isMarketingOrAutomated(message) || isSpamLikeMessage(message) || isSharedInboxAddress(sender.email) || looksLikeSpamSender(sender.email);
+}
+
+/** Someone who only emailed you is suggested once they have emailed you this many times. */
+export const MIN_RECEIVED_EMAILS = 2;
+
 /** True for account / marketing / no-reply mailboxes that should never be suggested. */
 export function isNonPersonalAddress(email: string): boolean {
   const local = email.split("@")[0] ?? "";
@@ -105,29 +163,35 @@ export function buildMailContacts(
 ): MailContact[] {
   const own = new Set(ownAddresses.map((address) => address.trim().toLowerCase()).filter(Boolean));
   const tallies = new Map<string, Tally>();
+  const count = (person: MailContact, sent: boolean, index: number) => {
+    const tally = tallies.get(person.email);
+    if (!tally) {
+      tallies.set(person.email, { contact: { ...person }, sentCount: sent ? 1 : 0, receivedCount: sent ? 0 : 1, firstSeen: index });
+      return;
+    }
+    if (sent) tally.sentCount++;
+    else tally.receivedCount++;
+    // Newest first, so the first name seen is the most recent; fill a gap only.
+    if (!tally.contact.name && person.name) tally.contact.name = person.name;
+  };
   messages.forEach((message, index) => {
     if (message.labelIds.includes("SPAM") || message.labelIds.includes("TRASH")) return;
     const sent = message.sent || message.labelIds.includes("SENT");
-    if (!sent && isMarketingOrAutomated(message)) return;
-    const people = sent
-      ? [...parseAddressList(message.to), ...parseAddressList(message.cc)]
-      : [...parseAddressList(message.from), ...parseAddressList(message.to), ...parseAddressList(message.cc)];
-    const seenHere = new Set<string>();
-    for (const person of people) {
-      if (own.has(person.email) || seenHere.has(person.email) || isNonPersonalAddress(person.email)) continue;
-      seenHere.add(person.email);
-      const tally = tallies.get(person.email);
-      if (!tally) {
-        tallies.set(person.email, { contact: { ...person }, sentCount: sent ? 1 : 0, receivedCount: sent ? 0 : 1, firstSeen: index });
-        continue;
+    if (sent) {
+      const seenHere = new Set<string>();
+      for (const person of [...parseAddressList(message.to), ...parseAddressList(message.cc)]) {
+        if (own.has(person.email) || seenHere.has(person.email) || isNonPersonalAddress(person.email)) continue;
+        seenHere.add(person.email);
+        count(person, true, index);
       }
-      if (sent) tally.sentCount++;
-      else tally.receivedCount++;
-      // Newest first, so the first name seen is the most recent; fill a gap only.
-      if (!tally.contact.name && person.name) tally.contact.name = person.name;
+      return;
     }
+    const sender = parseAddressList(message.from)[0];
+    if (!sender || own.has(sender.email) || isNonPersonalAddress(sender.email) || isUntrustedReceived(message, sender)) return;
+    count(sender, false, index);
   });
   return [...tallies.values()]
+    .filter((tally) => tally.sentCount > 0 || tally.receivedCount >= MIN_RECEIVED_EMAILS)
     .sort(
       (a, b) =>
         Number(b.sentCount > 0) - Number(a.sentCount > 0) ||
@@ -140,14 +204,14 @@ export function buildMailContacts(
 }
 
 /** Inbox search suggests a sender once they have emailed you this many times. */
-export const FREQUENT_SENDER_MIN_EMAILS = 3;
+export const FREQUENT_SENDER_MIN_EMAILS = MIN_RECEIVED_EMAILS;
 export const MAX_FREQUENT_SENDERS = 300;
 
 /**
  * People who emailed you at least `minEmails` times (counted on the From line
  * of received mail only), for the Inbox search suggestions. The same people
- * are left out as for buildMailContacts: marketing/automated mail, account
- * mailboxes and your own addresses. Most emails first, then the most recent,
+ * are left out as for buildMailContacts: marketing/automated/spam-like mail,
+ * account mailboxes, shared inboxes and your own addresses. Most emails first, then the most recent,
  * then alphabetical. `messages` must be newest first.
  */
 export function buildFrequentSenders(
@@ -160,9 +224,9 @@ export function buildFrequentSenders(
   const tallies = new Map<string, { contact: MailContact; count: number; firstSeen: number }>();
   messages.forEach((message, index) => {
     if (message.labelIds.includes("SPAM") || message.labelIds.includes("TRASH")) return;
-    if (message.sent || message.labelIds.includes("SENT") || isMarketingOrAutomated(message)) return;
+    if (message.sent || message.labelIds.includes("SENT")) return;
     const sender = parseAddressList(message.from)[0];
-    if (!sender || own.has(sender.email) || isNonPersonalAddress(sender.email)) return;
+    if (!sender || own.has(sender.email) || isNonPersonalAddress(sender.email) || isUntrustedReceived(message, sender)) return;
     const tally = tallies.get(sender.email);
     if (!tally) {
       tallies.set(sender.email, { contact: { ...sender }, count: 1, firstSeen: index });

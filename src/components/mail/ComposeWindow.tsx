@@ -18,7 +18,8 @@ import { browserStorage, clearPrompt, loadPrompt, promptKeys, savePrompt } from 
 import { OPTIMATE_OPENED_EVENT } from '../../lib/optimate-events'
 import { FOLLOW_UP_DAY_OPTIONS } from '../../lib/mail/schedule-times'
 import { mailAccountHeaders } from '../../lib/mail/accounts-shared'
-import { finishedRecipientAddresses, type MailContact } from '../../lib/mail/contacts-shared'
+import { finishedRecipientAddresses, suggestionPeople, type MailContact } from '../../lib/mail/contacts-shared'
+import { loadSavedPeople, peopleNeedRefresh, savePeople } from '../../lib/mail/people-cache'
 import { RecipientInput } from './RecipientInput'
 import { appendReplyQuote, replyQuoteHeader, replyQuoteStartHtml, type ReplyQuote } from '../../lib/mail/reply-quote'
 import {
@@ -177,6 +178,18 @@ interface Props {
   onDeleteDraft: (draftId: string) => Promise<void>
   /** Gmail signature HTML; '' when none is set, null while unknown. */
   signatureHtml: string | null
+  /**
+   * "Open in new window": called with a function that saves the email and
+   * returns its current state (stopping this window's autosave), for the new
+   * window to carry on with. Not passed where popping out makes no sense.
+   */
+  onPopOut?: (snapshot: () => Promise<ComposeState>) => void
+  /** This compose window is the whole browser window (the pop-out). */
+  popout?: boolean
+}
+
+function cleanPeople(value: unknown): MailContact[] {
+  return Array.isArray(value) ? value.filter((c): c is MailContact => typeof c?.email === 'string' && typeof c?.name === 'string') : []
 }
 
 async function postJson<T>(url: string, body: unknown, account?: string): Promise<T> {
@@ -221,7 +234,18 @@ const IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp
 const DISPLAY_WIDTH = 600
 const LIMIT_NOTE = `Images and attachments can total up to ${formatSize(MAIL_ATTACHMENT_LIMITS.maxTotalBytes)} per email.`
 
-export default function ComposeWindow({ initial, title, onClose, onSend, onSchedule, onSaveDraft, onDeleteDraft, signatureHtml }: Props) {
+export default function ComposeWindow({
+  initial,
+  title,
+  onClose,
+  onSend,
+  onSchedule,
+  onSaveDraft,
+  onDeleteDraft,
+  signatureHtml,
+  onPopOut,
+  popout = false,
+}: Props) {
   const [state, setState] = useState<ComposeState>(initial)
   const signatureParts = useMemo(() => (signatureHtml ? splitSignatureSignOff(signatureHtml) : null), [signatureHtml])
   const signatureRef = useRef(signatureParts)
@@ -269,20 +293,41 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
     setSettledRecipients((s) => ({ ...s, to: target.to, cc: target.cc }))
     if (next && target.cc) setShowCc(true)
   }
-  // To/Cc/Bcc suggestions, loaded once the first recipient field is focused.
+  // To/Cc/Bcc suggestions: the people list saved in this browser (see
+  // people-cache) straight away, fetched from Gmail only when there is none
+  // or it is a few hours old.
   const [contacts, setContacts] = useState<MailContact[] | null>(null)
   const contactsRequested = useRef(false)
   const loadContacts = useCallback(() => {
     if (contactsRequested.current) return
     contactsRequested.current = true
+    const storage = browserStorage()
+    const account = initial.account ?? ''
+    const saved = loadSavedPeople(storage, account, Date.now())
+    if (saved) setContacts(suggestionPeople(saved))
+    if (!peopleNeedRefresh(saved, Date.now())) return
     fetch('/api/mail/contacts', { credentials: 'include', headers: mailAccountHeaders(initial.account) })
       .then(async (res) => {
-        const data = (await res.json().catch(() => null)) as { contacts?: unknown } | null
-        const list = res.ok && Array.isArray(data?.contacts) ? (data.contacts as MailContact[]) : []
-        setContacts(list.filter((c) => typeof c?.email === 'string' && typeof c?.name === 'string'))
+        const data = (await res.json().catch(() => null)) as { contacts?: unknown; senders?: unknown } | null
+        if (!res.ok || !data) {
+          if (!saved) setContacts([])
+          return
+        }
+        const people = { contacts: cleanPeople(data.contacts), senders: cleanPeople(data.senders) }
+        savePeople(storage, account, people, Date.now())
+        setContacts(suggestionPeople(people))
       })
       // Suggestions are a convenience: without them the fields work as plain text.
-      .catch(() => setContacts([]))
+      .catch(() => {
+        if (!saved) setContacts([])
+      })
+  }, [initial.account])
+  // The saved list is a quick read, so it is ready before the first letter is
+  // typed; Gmail is only asked (if needed) once a recipient field is focused.
+  useEffect(() => {
+    if (contactsRequested.current) return
+    const saved = loadSavedPeople(browserStorage(), initial.account ?? '', Date.now())
+    if (saved) setContacts(suggestionPeople(saved))
   }, [initial.account])
   // Waiting out the undo window after Send; the timer is in sendTimerRef.
   const [sendPending, setSendPending] = useState(false)
@@ -379,12 +424,13 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
     promptRef.current?.focus()
   }, [])
 
-  // Opening OptiMate minimises this window so it doesn't cover the panel.
+  // Opening OptiMate minimises this window so it doesn't cover the panel (not in its own window).
   useEffect(() => {
+    if (popout) return
     const minimise = () => setMinimised(true)
     window.addEventListener(OPTIMATE_OPENED_EVENT, minimise)
     return () => window.removeEventListener(OPTIMATE_OPENED_EVENT, minimise)
-  }, [])
+  }, [popout])
 
   // Leaving the page (or closing another way) mid-wait cancels the timer; nothing is sent.
   useEffect(
@@ -915,7 +961,32 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
     setTableOpen(false)
   }
 
-  const windowClass = [styles.window, minimised ? styles.minimised : '', expanded && !minimised ? styles.expanded : '']
+  /**
+   * Open in new window: save what is typed, stop autosaving here (the new
+   * window carries on with the same Gmail draft) and hand over the email as
+   * it is now, with any shown quote folded into the body.
+   */
+  const popOutSnapshot = useCallback(async (): Promise<ComposeState> => {
+    await autosave()
+    while (savingRef.current) await savingRef.current
+    closedRef.current = true
+    const current = outgoing(stateRef.current)
+    const quoteShown = quoteOpenRef.current && quoteHeader !== ''
+    return {
+      ...current,
+      html: composedHtml(),
+      ...(draftIdRef.current ? { draftId: draftIdRef.current } : {}),
+      ...(promptTextRef.current.trim() ? { aiPrompt: promptTextRef.current } : {}),
+      replyTo: current.replyTo && quoteShown ? { ...current.replyTo, quote: undefined } : current.replyTo,
+    }
+  }, [autosave, outgoing, composedHtml, quoteHeader])
+
+  const windowClass = [
+    styles.window,
+    popout ? styles.popout : '',
+    minimised && !popout ? styles.minimised : '',
+    expanded && !minimised && !popout ? styles.expanded : '',
+  ]
     .filter(Boolean)
     .join(' ')
 
@@ -934,6 +1005,21 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
           {autoStatus ? <span aria-live="polite"> · {autoStatus}</span> : null}
         </span>
         <span className={styles.headerButtons}>
+          {onPopOut && !popout && !minimised ? (
+            <button
+              type="button"
+              aria-label="Open in new window"
+              title="Open in new window"
+              disabled={busy !== '' || sendPending}
+              onClick={(e) => {
+                e.stopPropagation()
+                onPopOut(popOutSnapshot)
+              }}
+            >
+              ⧉
+            </button>
+          ) : null}
+          {popout ? null : (
           <button
             type="button"
             aria-label={minimised ? 'Restore' : 'Minimise'}
@@ -945,7 +1031,8 @@ export default function ComposeWindow({ initial, title, onClose, onSend, onSched
           >
             {minimised ? '▴' : '▁'}
           </button>
-          {!minimised ? (
+          )}
+          {!minimised && !popout ? (
             <button type="button" aria-label={expanded ? 'Exit full size' : 'Full size'} title={expanded ? 'Exit full size' : 'Full size'} onClick={() => setExpanded((x) => !x)}>
               {expanded ? '⤡' : '⤢'}
             </button>

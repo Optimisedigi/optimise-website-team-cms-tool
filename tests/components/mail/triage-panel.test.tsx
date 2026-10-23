@@ -26,6 +26,55 @@ const RESULT = {
   ],
 }
 
+describe('TriagePanel saved results', () => {
+  const sortingApi = () =>
+    vi.fn(async (url: string, init?: RequestInit) => {
+      if (url === '/api/mail/tags') return { tags: [] } as never
+      if (url !== '/api/mail/triage') return { ok: true } as never
+      const body = JSON.parse(String(init?.body))
+      if (body.step === 'list') return { ids: ['a0'], truncated: false } as never
+      if (body.step === 'read') return { messages: [{ messageId: 'a0' }] } as never
+      const { truncated: _t, ...sorted } = RESULT
+      return sorted as never
+    })
+
+  it('shows the last triage again after closing, until it is all actioned, and Triage again replaces it', async () => {
+    localStorage.clear()
+    const api = sortingApi()
+    const first = render(<TriagePanel account="" api={api} onApplied={vi.fn()} onClose={vi.fn()} />)
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Triage unread emails' }))
+    })
+    fireEvent.click(screen.getByRole('button', { name: /Sales pitches/ }))
+    fireEvent.click(screen.getByLabelText('Clear Bob (bob@dev.io)'))
+    first.unmount()
+
+    // Reopened: the results and what was ticked are back, without asking the AI again.
+    const second = render(<TriagePanel account="" api={api} onApplied={vi.fn()} onClose={vi.fn()} />)
+    expect(screen.getByText('233 unread emails from 3 senders.')).toBeTruthy()
+    expect(screen.getByText(/Saved results from/)).toBeTruthy()
+    expect(screen.getByText('Selected: 200 emails from 1 sender')).toBeTruthy()
+    expect(api.mock.calls.filter(([url]) => url === '/api/mail/triage')).toHaveLength(3)
+
+    // Triage again: the old run is replaced (one saved entry, the fresh selection).
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Triage again' }))
+    })
+    expect(screen.getByText('Selected: 230 emails from 2 senders')).toBeTruthy()
+    expect(JSON.parse(localStorage.getItem('mail-triage:main') ?? '{}').selected).toEqual(['ann@seo.io', 'bob@dev.io'])
+
+    // Archive everything left, Clients included: nothing is left to action, so the saved run is deleted.
+    fireEvent.click(screen.getByRole('button', { name: /^Clients/ }))
+    fireEvent.click(screen.getByLabelText('Clear Jo (jo@acme.com)'))
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Archive selected' }))
+    })
+    expect(localStorage.getItem('mail-triage:main')).toBeNull()
+    second.unmount()
+    localStorage.clear()
+  })
+})
+
 describe('TriagePanel', () => {
   it('reads a big inbox in chunks with progress, and sorts what was read if Gmail stops a later chunk', async () => {
     const ids = Array.from({ length: 450 }, (_, i) => `m${i}`)
@@ -120,6 +169,39 @@ describe('TriagePanel', () => {
     expect(onApplied).toHaveBeenCalledTimes(1)
     expect(screen.queryByText('Ann')).toBeNull()
     expect(screen.getByText('33 unread emails from 2 senders.')).toBeTruthy()
+  })
+
+  it('deletes the ticked emails to the Bin after confirming, with the actions on the left of the footer', async () => {
+    const calls: Array<{ url: string; body: unknown }> = []
+    const api = vi.fn(async (url: string, init?: RequestInit) => {
+      const body = init?.body ? JSON.parse(String(init.body)) : null
+      calls.push({ url, body })
+      if (url === '/api/mail/tags') return { tags: [] } as never
+      if (url !== '/api/mail/triage') return { ok: true } as never
+      if (body.step === 'list') return { ids: ['a0'], truncated: false } as never
+      if (body.step === 'read') return { messages: [{ messageId: 'a0' }] } as never
+      const { truncated: _t, ...sorted } = RESULT
+      return sorted as never
+    })
+    render(<TriagePanel api={api} onApplied={vi.fn()} onClose={vi.fn()} />)
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Triage unread emails' }))
+    })
+    const markRead = screen.getByRole('button', { name: 'Mark selected read' })
+    const footerButtons = Array.from(markRead.parentElement?.querySelectorAll('button') ?? []).map((b) => b.textContent)
+    expect(footerButtons.slice(0, 3)).toEqual(['Mark selected read', 'Archive selected', 'Delete selected'])
+
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValueOnce(false).mockReturnValueOnce(true)
+    fireEvent.click(screen.getByRole('button', { name: 'Delete selected' }))
+    expect(calls.some((call) => call.url === '/api/mail/triage/apply')).toBe(false)
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Delete selected' }))
+    })
+    const applied = calls.filter((call) => call.url === '/api/mail/triage/apply').map((call) => call.body as { action: string; messageIds: string[] })
+    expect(applied.map((body) => body.action)).toEqual(['trash'])
+    expect(applied[0]?.messageIds).toEqual([...ANN_IDS, 'b1'])
+    expect(screen.getByRole('status').textContent).toMatch(/Deleted 201 emails \(in Gmail's Bin for 30 days\)/)
+    confirm.mockRestore()
   })
 
   /** A panel with RESULT sorted, recording every call; `tags` are the saved tags. */

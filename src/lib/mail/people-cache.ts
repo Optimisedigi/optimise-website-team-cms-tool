@@ -1,12 +1,15 @@
 import type { MailContact } from "./contacts-shared";
 
 /**
- * Keeps the Mail search box's people list (/api/mail/contacts: who you email
- * and who emails you) in this browser's localStorage, one entry per Gmail
- * account. Building that list reads hundreds of Gmail messages (several
- * seconds), so the search box uses the saved copy straight away and the page
- * refreshes it in the background. Only names and addresses are kept, never
- * email content, and a copy older than MAX_AGE_MS is not used.
+ * Keeps the Mail people list (/api/mail/contacts: who you email and who emails
+ * you regularly) in this browser's localStorage, one entry per Gmail account.
+ * Building that list reads hundreds of Gmail messages (several seconds), so
+ * the search box and the compose window's To / Cc / Bcc fields use the saved
+ * copy straight away, and it is only fetched again in the background once it
+ * is older than PEOPLE_REFRESH_MS. Only names and addresses are kept, never
+ * email content (the server already leaves out marketing, no-reply, shared
+ * inboxes, spam and one-off senders), and a copy older than PEOPLE_MAX_AGE_MS
+ * is not used at all.
  */
 
 export interface MailPeople {
@@ -14,8 +17,15 @@ export interface MailPeople {
   senders: MailContact[];
 }
 
+export interface SavedMailPeople extends MailPeople {
+  /** When the list was saved (ms since epoch). */
+  savedAt: number;
+}
+
 const PREFIX = "mail-search-people:";
 export const PEOPLE_MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000;
+/** A saved list younger than this is used as is, without asking Gmail again. */
+export const PEOPLE_REFRESH_MS = 6 * 60 * 60 * 1000;
 /** Keep the saved copy small. */
 const MAX_PEOPLE = 1000;
 
@@ -32,7 +42,7 @@ function cleanList(value: unknown): MailContact[] {
 }
 
 /** The saved people for this account ('' = main Gmail), or null when none or too old. */
-export function loadSavedPeople(storage: Storage | null, account: string, now: number): MailPeople | null {
+export function loadSavedPeople(storage: Storage | null, account: string, now: number): SavedMailPeople | null {
   if (!storage) return null;
   try {
     const raw = storage.getItem(key(account));
@@ -42,10 +52,15 @@ export function loadSavedPeople(storage: Storage | null, account: string, now: n
       storage.removeItem(key(account));
       return null;
     }
-    return { contacts: cleanList(parsed.contacts), senders: cleanList(parsed.senders) };
+    return { contacts: cleanList(parsed.contacts), senders: cleanList(parsed.senders), savedAt: parsed.savedAt };
   } catch {
     return null;
   }
+}
+
+/** True when there is no saved list, or it is old enough to fetch again in the background. */
+export function peopleNeedRefresh(saved: SavedMailPeople | null, now: number): boolean {
+  return !saved || now - saved.savedAt >= PEOPLE_REFRESH_MS;
 }
 
 /** Save the people for this account. Never throws (storage full or blocked). */

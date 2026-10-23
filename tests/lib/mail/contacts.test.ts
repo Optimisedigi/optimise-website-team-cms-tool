@@ -1,8 +1,15 @@
 import { describe, expect, it } from 'vitest'
-import { buildFrequentSenders, buildMailContacts, parseAddressList, type ContactSourceMessage } from '@/lib/mail/contacts'
-import { addressesIn, applyRecipient, matchMailContacts, recipientTokenAt, searchSenderAddresses } from '@/lib/mail/contacts-shared'
+import {
+  buildFrequentSenders,
+  buildMailContacts,
+  isSpamLikeMessage,
+  looksLikeSpamSender,
+  parseAddressList,
+  type ContactSourceMessage,
+} from '@/lib/mail/contacts'
+import { addressesIn, applyRecipient, matchMailContacts, recipientTokenAt, searchSenderAddresses, suggestionPeople } from '@/lib/mail/contacts-shared'
 
-const msg = (m: Partial<ContactSourceMessage>): ContactSourceMessage => ({ sent: false, from: '', to: '', cc: '', labelIds: ['INBOX'], ...m })
+const msg = (m: Partial<ContactSourceMessage>): ContactSourceMessage => ({ sent: false, from: '', to: 'me@od.com', cc: '', labelIds: ['INBOX'], ...m })
 const OWN = ['me@od.com']
 
 describe('parseAddressList', () => {
@@ -20,11 +27,13 @@ describe('parseAddressList', () => {
 })
 
 describe('buildMailContacts', () => {
-  it('uses people from sent and received mail, never your own address', () => {
+  it('uses people you emailed and senders who emailed you more than once, never your own address', () => {
     const contacts = buildMailContacts(
       [
         msg({ sent: true, labelIds: ['SENT'], from: 'me@od.com', to: 'Carli <carli@client.com>', cc: 'me@od.com' }),
-        msg({ from: 'Dan Lee <dan@other.com>', to: 'me@od.com' }),
+        msg({ from: 'Dan Lee <dan@other.com>', to: 'me@od.com', cc: 'cc-only@other.com' }),
+        msg({ from: 'dan@other.com', to: 'me@od.com' }),
+        msg({ from: 'Once <once@other.com>', to: 'me@od.com' }),
       ],
       OWN,
     )
@@ -43,6 +52,7 @@ describe('buildMailContacts', () => {
         msg({ from: 'Google <no-reply@accounts.google.com>' }),
         msg({ from: 'Stripe <billing@stripe.com>' }),
         msg({ from: 'Real Person <real@person.com>' }),
+        msg({ from: 'Real Person <real@person.com>' }),
         // Even when you wrote to one, a no-reply/account mailbox is not a person.
         msg({ sent: true, labelIds: ['SENT'], to: 'noreply@app.com, accounts@vendor.com' }),
       ],
@@ -57,6 +67,8 @@ describe('buildMailContacts', () => {
         msg({ from: 'often@x.com' }),
         msg({ from: 'new@x.com' }),
         msg({ from: 'often@x.com' }),
+        msg({ from: 'often@x.com' }),
+        msg({ from: 'new@x.com' }),
         msg({ sent: true, labelIds: ['SENT'], to: 'wrote@x.com' }),
       ],
       OWN,
@@ -97,7 +109,7 @@ describe('recipient field editing', () => {
 describe('buildFrequentSenders', () => {
   const from = (sender: string, extra: Partial<ContactSourceMessage> = {}) => msg({ from: sender, to: 'me@od.com', ...extra })
 
-  it('lists people who emailed you at least three times, most emails first', () => {
+  it('lists people who emailed you more than once, most emails first', () => {
     const senders = buildFrequentSenders(
       [
         from('Rebekah Sadler <rebekah@inthepicture.com.au>'),
@@ -109,8 +121,9 @@ describe('buildFrequentSenders', () => {
         from('Rebekah Sadler <rebekah@inthepicture.com.au>'),
         from('Twice <twice@x.com>'),
         from('Twice <twice@x.com>'),
+        from('Once <once@x.com>'),
         // Your own sent mail never counts towards anyone.
-        msg({ sent: true, labelIds: ['SENT'], from: 'me@od.com', to: 'twice@x.com' }),
+        msg({ sent: true, labelIds: ['SENT'], from: 'me@od.com', to: 'once@x.com' }),
         from('me@od.com'),
         from('me@od.com'),
         from('me@od.com'),
@@ -120,6 +133,7 @@ describe('buildFrequentSenders', () => {
     expect(senders).toEqual([
       { email: 'rebekah@inthepicture.com.au', name: 'Rebekah Sadler' },
       { email: 'dan@other.com', name: 'Dan Lee' },
+      { email: 'twice@x.com', name: 'Twice' },
     ])
   })
 
@@ -142,5 +156,58 @@ describe('searchSenderAddresses', () => {
     expect(searchSenderAddresses(senders, contacts, 'sadl')).toEqual(['rebekah@inthepicture.com.au'])
     expect(searchSenderAddresses(senders, contacts, 'inthepicture')).toEqual(['rebekah@inthepicture.com.au', 'carli@inthepicture.com.au'])
     expect(searchSenderAddresses(senders, contacts, 'r')).toEqual([])
+  })
+})
+
+describe('spam and shared-inbox senders', () => {
+  it('never learns hello@ style shared inboxes, spam-looking or undisclosed-recipient senders from received mail', () => {
+    const twice = (m: Partial<ContactSourceMessage>) => [msg(m), msg(m)]
+    const contacts = buildMailContacts(
+      [
+        ...twice({ from: 'Brand <hello@brand.com>' }),
+        ...twice({ from: 'Info <info@agency.com>' }),
+        ...twice({ from: 'Offers <jane@news.brand.com>' }),
+        ...twice({ from: 'x7fk3q9z2wbt@spam.biz' }),
+        ...twice({ from: 'user84733921@cheap.biz' }),
+        ...twice({ from: 'Mass <mass@x.com>', to: 'undisclosed-recipients:;' }),
+        ...twice({ from: 'Real <real@person.com>' }),
+        // You emailed this shared inbox yourself, so it stays suggestible.
+        msg({ sent: true, labelIds: ['SENT'], to: 'hello@client.com' }),
+      ],
+      OWN,
+    )
+    expect(contacts.map((c) => c.email)).toEqual(['hello@client.com', 'real@person.com'])
+    expect(buildFrequentSenders([...twice({ from: 'hello@brand.com' }), ...twice({ from: 'real@person.com' })], OWN).map((c) => c.email)).toEqual([
+      'real@person.com',
+    ])
+  })
+
+  it('tells bulk-mailer addresses apart from ordinary ones', () => {
+    expect(looksLikeSpamSender('jane@news.brand.com')).toBe(true)
+    expect(looksLikeSpamSender('bounce=123@mailer.x.com')).toBe(true)
+    expect(looksLikeSpamSender('jane.smith@brand.com')).toBe(false)
+    expect(looksLikeSpamSender('editor@news.com.au')).toBe(false)
+    expect(looksLikeSpamSender('rebekah@inthepicture.com.au')).toBe(false)
+    expect(isSpamLikeMessage({ to: '', cc: '' })).toBe(true)
+    expect(isSpamLikeMessage({ to: 'me@od.com', cc: '' })).toBe(false)
+  })
+})
+
+describe('address suggestions', () => {
+  const people = [
+    { email: 'carli@inthepicture.com.au', name: 'Carli' },
+    { email: 'jo@client.com', name: 'Jo' },
+  ]
+
+  it('matches the part after the @ when the text starts with @, and partial addresses with an @', () => {
+    expect(matchMailContacts(people, '@inthe').map((c) => c.email)).toEqual(['carli@inthepicture.com.au'])
+    expect(matchMailContacts(people, 'jo@cl').map((c) => c.email)).toEqual(['jo@client.com'])
+    expect(matchMailContacts(people, '@')).toEqual([])
+  })
+
+  it('suggests regular senders first, then everyone else, each once', () => {
+    expect(
+      suggestionPeople({ senders: [people[1]!], contacts: [people[0]!, people[1]!] }).map((c) => c.email),
+    ).toEqual(['jo@client.com', 'carli@inthepicture.com.au'])
   })
 })

@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { findTagByName, MAX_TAG_NAME, senderMatchesSearch, type MailTag } from '../../lib/mail/tags'
+import { browserStorage } from '../../lib/mail/ai-prompt-store'
+import { loadSavedTriage, saveTriage } from '../../lib/mail/triage-store'
 import styles from './TriagePanel.module.css'
 
 /** Mirrors the /api/mail/triage response (src/lib/mail/triage.ts). */
@@ -46,6 +48,13 @@ function timeLeft(remaining: number): string {
   return minutes <= 1 ? 'under a minute' : `about ${minutes} minutes`
 }
 const SUBJECTS_SHOWN = 3
+
+/** Progress and result wording for the footer actions. */
+const APPLY_WORDS = {
+  archive: { doing: 'Archiving', done: 'Archived' },
+  read: { doing: 'Marking read', done: 'Marked read' },
+  trash: { doing: 'Deleting', done: 'Deleted' },
+} as const
 
 /** Fixed colours for the two groups that always exist. */
 const CATEGORY_TONES: Record<string, string> = {
@@ -139,6 +148,10 @@ function defaultSelection(categories: TriageCategoryRow[]): Set<string> {
  * the rest read. Nothing changes in Gmail until Archive / Mark read is clicked.
  * The search finds senders (name, address or subject) to tick or untick
  * together, and emails can be tagged (Gmail labels) to work through later.
+ *
+ * With `account` set, the results are kept in this browser (see
+ * triage-store) until they are all actioned: closing the panel or reloading
+ * Mail shows them again, and triaging again replaces them.
  */
 export default function TriagePanel({
   api,
@@ -147,8 +160,11 @@ export default function TriagePanel({
   fullView = true,
   onFullViewChange,
   onOpenTag,
+  account,
 }: {
   api: <T>(url: string, init?: RequestInit) => Promise<T>
+  /** The Gmail account on screen ('' = main Gmail); set to keep the last triage in this browser. */
+  account?: string
   onApplied: () => void
   onClose: () => void
   /** Expanded: the panel takes the whole mail area. Collapsed: a one-line bar (results and any run are kept). */
@@ -157,11 +173,15 @@ export default function TriagePanel({
   /** List a tag's emails in Mail, to work through them. */
   onOpenTag?: (tag: MailTag) => void
 }) {
-  const [result, setResult] = useState<TriageResult | null>(null)
+  // The last triage saved for this account, if any (read once; MailApp keys the panel by account).
+  const [saved] = useState(() => (account === undefined ? null : loadSavedTriage(browserStorage(), account, Date.now())))
+  const [result, setResult] = useState<TriageResult | null>(saved?.result ?? null)
+  // When the results on screen were made, so saved results say how old they are.
+  const [ranAt, setRanAt] = useState<number | null>(saved?.savedAt ?? null)
   const [loading, setLoading] = useState(false)
-  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [selected, setSelected] = useState<Set<string>>(() => new Set(saved?.selected ?? []))
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
-  const [busy, setBusy] = useState<'' | 'archive' | 'read' | 'tag'>('')
+  const [busy, setBusy] = useState<'' | 'archive' | 'read' | 'trash' | 'tag'>('')
   const [note, setNote] = useState('')
   // Finds senders in the results (name, address or subject) to tick or untick together.
   const [search, setSearch] = useState('')
@@ -171,6 +191,12 @@ export default function TriagePanel({
   // Stops a running triage when the panel closes.
   const runRef = useRef<AbortController | null>(null)
   useEffect(() => () => runRef.current?.abort(), [])
+
+  // Keep the results (and what is ticked) until they are all actioned; a new run overwrites them.
+  useEffect(() => {
+    if (account === undefined || !result || ranAt === null) return
+    saveTriage(browserStorage(), account, { result, selected: [...selected].sort(), savedAt: ranAt })
+  }, [account, result, selected, ranAt])
 
   const loadTags = useCallback(async () => {
     try {
@@ -222,6 +248,7 @@ export default function TriagePanel({
       const sorted = await post<Omit<TriageResult, 'truncated'>>({ step: 'sort', messages })
       if (run.signal.aborted) return
       setResult({ ...sorted, truncated: listed.truncated || stoppedEarly !== '' })
+      setRanAt(Date.now())
       setSelected(defaultSelection(sorted.categories))
       setExpanded(new Set())
       setNote(stoppedEarly ? `Gmail stopped the reading early (${stoppedEarly}). These are the emails read so far.` : '')
@@ -340,20 +367,27 @@ export default function TriagePanel({
     })
   }
 
-  async function apply(action: 'archive' | 'read') {
+  async function apply(action: 'archive' | 'read' | 'trash') {
     const ids = totals.pickedIds
     if (busy !== '' || ids.length === 0) return
+    if (
+      action === 'trash' &&
+      !window.confirm(`Delete ${plural(ids.length, 'email')}? They go to Gmail's Bin, where you can restore them for 30 days.`)
+    ) {
+      return
+    }
+    const words = APPLY_WORDS[action]
     setBusy(action)
     setNote('')
     const done = new Set<string>()
     try {
       for (let i = 0; i < ids.length; i += APPLY_CHUNK) {
         const chunk = ids.slice(i, i + APPLY_CHUNK)
-        setNote(`${action === 'archive' ? 'Archiving' : 'Marking read'} ${fmt(Math.min(i + chunk.length, ids.length))} of ${fmt(ids.length)}…`)
+        setNote(`${words.doing} ${fmt(Math.min(i + chunk.length, ids.length))} of ${fmt(ids.length)}…`)
         await api('/api/mail/triage/apply', { method: 'POST', body: JSON.stringify({ messageIds: chunk, action }) })
         for (const id of chunk) done.add(id)
       }
-      setNote(`${action === 'archive' ? 'Archived' : 'Marked read'} ${plural(done.size, 'email')}.`)
+      setNote(`${words.done} ${plural(done.size, 'email')}${action === 'trash' ? " (in Gmail's Bin for 30 days)" : ''}.`)
     } catch (err) {
       setNote(`${(err as Error).message}${done.size ? ` (${fmt(done.size)} done before it stopped)` : ''}`)
     } finally {
@@ -458,7 +492,7 @@ export default function TriagePanel({
         Runs only when you click the button below. The AI sees each sender and subject line, never the emails themselves, and makes up
         categories to fit your inbox. Untick anything
         you want to keep, or find a sender to untick all of theirs at once. Tag emails to keep them in a pile you can open
-        later; tagged senders are unticked. Nothing changes in Gmail until you click Archive, Mark read or Tag.
+        later; tagged senders are unticked. Nothing changes in Gmail until you click Mark read, Archive, Delete or Tag. Delete moves emails to Gmail's Bin, where they can be restored for 30 days.
       </p>
       <div className={styles.actions}>
         <button type="button" className={styles.btn} onClick={() => void runTriage()} disabled={loading || busy !== ''}>
@@ -505,6 +539,12 @@ export default function TriagePanel({
                 />
               ))}
             </div>
+          ) : null}
+          {saved && ranAt === saved.savedAt ? (
+            <p className={styles.muted}>
+              Saved results from {new Date(ranAt).toLocaleString('en-AU', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}.
+              They stay here until you action them; Triage again replaces them.
+            </p>
           ) : null}
           <p className={styles.summary}>
             {totals.emails === 0
@@ -701,6 +741,26 @@ export default function TriagePanel({
                 Selected: {plural(totals.pickedEmails, 'email')} from {plural(totals.pickedSenders, 'sender')}
                 {matches ? ' (across all categories, not just the search)' : ''}
               </span>
+              {/* Actions sit on the left, clear of the OptiMate button and client email alert in the bottom right. */}
+              <button type="button" className={styles.btn} onClick={() => void apply('read')} disabled={busy !== '' || totals.pickedEmails === 0}>
+                {busy === 'read' ? 'Marking read…' : 'Mark selected read'}
+              </button>
+              <button
+                type="button"
+                className={`${styles.btn} ${styles.primary}`}
+                onClick={() => void apply('archive')}
+                disabled={busy !== '' || totals.pickedEmails === 0}
+              >
+                {busy === 'archive' ? 'Archiving…' : 'Archive selected'}
+              </button>
+              <button
+                type="button"
+                className={`${styles.btn} ${styles.danger}`}
+                onClick={() => void apply('trash')}
+                disabled={busy !== '' || totals.pickedEmails === 0}
+              >
+                {busy === 'trash' ? 'Deleting…' : 'Delete selected'}
+              </button>
               {!matches ? (
                 <TagPicker
                   tags={tags ?? []}
@@ -711,17 +771,6 @@ export default function TriagePanel({
                   onApply={(choice) => void tagEmails({ ids: totals.pickedIds, addresses: [...selected] }, choice)}
                 />
               ) : null}
-              <button
-                type="button"
-                className={`${styles.btn} ${styles.primary}`}
-                onClick={() => void apply('archive')}
-                disabled={busy !== '' || totals.pickedEmails === 0}
-              >
-                {busy === 'archive' ? 'Archiving…' : 'Archive selected'}
-              </button>
-              <button type="button" className={styles.btn} onClick={() => void apply('read')} disabled={busy !== '' || totals.pickedEmails === 0}>
-                {busy === 'read' ? 'Marking read…' : 'Mark selected read'}
-              </button>
             </div>
           ) : null}
         </>

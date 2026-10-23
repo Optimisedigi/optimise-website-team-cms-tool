@@ -31,11 +31,8 @@ describe('GET /api/mail/contacts', () => {
     expect(res.status).toBe(200)
     expect(res.headers.get('cache-control')).toContain('no-store')
     expect(await res.json()).toEqual({
-      contacts: [
-        { email: 'carli@client.com', name: 'Carli' },
-        { email: 'dan@x.com', name: 'Dan' },
-      ],
-      // Dan emailed once, so is not yet a regular sender.
+      // Dan emailed once, so is not kept yet; the marketing sender never is.
+      contacts: [{ email: 'carli@client.com', name: 'Carli' }],
       senders: [],
     })
     const received = listMessageIdsMatching.mock.calls.find(([, q]) => !q.startsWith('in:sent'))?.[1] ?? ''

@@ -70,8 +70,28 @@
   border-bottom: 1px solid var(--mail-border);
 }
 
+.searchRow {
+  display: flex;
+  gap: 6px;
+  align-items: stretch;
+}
+
 .searchBox {
   position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+.searchScope {
+  flex-shrink: 0;
+  max-width: 42%;
+  padding: 7px 6px;
+  border: 1px solid var(--theme-elevation-150);
+  border-radius: 6px;
+  background: var(--theme-elevation-100);
+  color: var(--mail-text);
+  font: inherit;
+  font-size: 13px;
 }
 
 .searchList {

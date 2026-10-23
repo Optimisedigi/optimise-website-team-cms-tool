@@ -20,10 +20,11 @@ const RECEIVED_QUERY =
  * People to suggest in the compose window's To, Cc and Bcc fields, built from
  * the logged-in user's own sent and received Gmail on the account in the
  * request (see lib/mail/contacts.ts for what is left out and the ranking).
- * `senders` is the people who emailed you at least three times (the Inbox
- * search suggestions; see buildFrequentSenders).
+ * `senders` is the people who emailed you more than once (the search box's
+ * first suggestions; see buildFrequentSenders).
  * Reads headers only (From, To, Cc and bulk/auto headers), never bodies, and
- * stores nothing. Never cached, since it is one person's address book.
+ * stores nothing on the server. Never HTTP-cached, since it is one person's
+ * address book; the Mail page keeps a copy in the browser (people-cache).
  */
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const ctx = await requireMailUser(req);

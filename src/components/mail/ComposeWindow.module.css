@@ -36,6 +36,19 @@
   border-radius: 10px;
 }
 
+/* Popped out into its own browser window: the compose window is the whole page. */
+.popout {
+  inset: 0;
+  right: 0;
+  bottom: 0;
+  transform: none;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  border-radius: 0;
+  box-shadow: none;
+}
+
 .header {
   display: flex;
   align-items: center;

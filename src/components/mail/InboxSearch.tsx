@@ -2,29 +2,46 @@
 
 import { useId, useMemo, useState, type KeyboardEvent } from 'react'
 import { matchMailContacts, type MailContact } from '../../lib/mail/contacts-shared'
+import type { MailSearchScope } from '../../lib/mail/inbox-search'
 import styles from './MailApp.module.css'
+
+/** The "Search in" choices, in order (see mailSearchQuery). */
+const SCOPE_LABELS: Record<MailSearchScope, string> = {
+  all: 'Everything',
+  person: 'Name or address',
+  subject: 'Subject',
+  body: 'Email text',
+}
+const SCOPES = Object.keys(SCOPE_LABELS) as MailSearchScope[]
 
 interface Props {
   value: string
   onChange: (value: string) => void
   /** Runs the search for the text in the box. */
   onSubmit: (value: string) => void
-  /** Runs a search for one sender picked from the suggestions. */
+  /** Runs a search for one person picked from the suggestions. */
   onPickSender: (contact: MailContact) => void
-  /** People to suggest (frequent senders); empty while loading or for no suggestions. */
+  /**
+   * People to suggest (regular senders first, then people you email); empty
+   * while loading or for no suggestions.
+   */
   senders: readonly MailContact[]
   /** Called on focus so the people list loads before the first letters are typed. */
   onWantSenders: () => void
   label: string
+  /** Where the search looks; the choice runs the typed search again. */
+  scope: MailSearchScope
+  onScopeChange: (scope: MailSearchScope) => void
 }
 
 /**
- * The Mail list's search box. In the Inbox it suggests people who email you
- * regularly as you type (from the second letter); picking one lists their
- * mail. Enter runs the typed search unless a suggestion is highlighted with
- * the arrow keys; Escape closes the list.
+ * The Mail list's search box. It suggests people from your mail as you type
+ * (from the second letter, or "@" and a letter for a domain); picking one
+ * lists their mail. Enter runs the typed search unless a suggestion is
+ * highlighted with the arrow keys; Escape closes the list. "Search in" limits
+ * the search to the person, the subject or the email's text.
  */
-export function InboxSearch({ value, onChange, onSubmit, onPickSender, senders, onWantSenders, label }: Props) {
+export function InboxSearch({ value, onChange, onSubmit, onPickSender, senders, onWantSenders, label, scope, onScopeChange }: Props) {
   const listId = useId()
   const [focused, setFocused] = useState(false)
   const [dismissed, setDismissed] = useState(false)
@@ -32,8 +49,8 @@ export function InboxSearch({ value, onChange, onSubmit, onPickSender, senders, 
   const [active, setActive] = useState(-1)
 
   const suggestions = useMemo(
-    () => (focused && !dismissed ? matchMailContacts(senders, value) : []),
-    [senders, focused, dismissed, value],
+    () => (focused && !dismissed && (scope === 'all' || scope === 'person') ? matchMailContacts(senders, value) : []),
+    [senders, focused, dismissed, value, scope],
   )
   const open = suggestions.length > 0
   const highlighted = active < suggestions.length ? active : -1
@@ -74,6 +91,7 @@ export function InboxSearch({ value, onChange, onSubmit, onPickSender, senders, 
         onSubmit(value)
       }}
     >
+      <div className={styles.searchRow}>
       <div className={styles.searchBox}>
         <input
           type="search"
@@ -120,6 +138,23 @@ export function InboxSearch({ value, onChange, onSubmit, onPickSender, senders, 
             ))}
           </ul>
         ) : null}
+      </div>
+      <select
+        className={styles.searchScope}
+        value={scope}
+        aria-label="Search in"
+        title="Search in"
+        onChange={(e) => {
+          const next = SCOPES.find((entry) => entry === e.target.value) ?? 'all'
+          onScopeChange(next)
+        }}
+      >
+        {SCOPES.map((entry) => (
+          <option key={entry} value={entry}>
+            {SCOPE_LABELS[entry]}
+          </option>
+        ))}
+      </select>
       </div>
     </form>
   )
