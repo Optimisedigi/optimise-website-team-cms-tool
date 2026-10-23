@@ -1,11 +1,16 @@
 'use client'
 
+import { useCallback, useRef, useState } from 'react'
 import {
   MAX_MEETING_ATTENDEES,
   MEETING_DURATION_OPTIONS,
+  isGenericMeetingTitle,
+  titleFromTopic,
   type MeetingInviteEdits,
 } from '@/lib/agents/adminmate/meeting-scheduler-tools'
 import type { MeetingInvitePreview } from '@/lib/meeting-scheduler-invites'
+import type { MailContact } from '@/lib/mail/contacts-shared'
+import AdminMateInviteeEmailInput from './AdminMateInviteeEmailInput'
 
 interface Props {
   preview: MeetingInvitePreview
@@ -25,6 +30,38 @@ function formatTime(iso: string, timeZone: string): string {
     hour: 'numeric',
     minute: '2-digit',
   }).format(new Date(iso))
+}
+
+/**
+ * People from the admin's own sent and received Gmail, loaded the first time
+ * an invitee email field is focused. Suggestions are a convenience: if Gmail
+ * is not connected or the request fails, the fields work as plain text.
+ */
+function useInboxContacts(): { contacts: MailContact[] | null; load: () => void } {
+  const [contacts, setContacts] = useState<MailContact[] | null>(null)
+  const requested = useRef(false)
+  const load = useCallback(() => {
+    if (requested.current) return
+    requested.current = true
+    const run = async (): Promise<void> => {
+      try {
+        const response = await fetch('/api/mail/contacts', { credentials: 'include' })
+        const data = (await response.json().catch(() => null)) as { contacts?: unknown } | null
+        const list: unknown[] = response.ok && Array.isArray(data?.contacts) ? data.contacts : []
+        setContacts(
+          list.filter(
+            (contact): contact is MailContact =>
+              typeof (contact as MailContact | null)?.email === 'string' &&
+              typeof (contact as MailContact | null)?.name === 'string',
+          ),
+        )
+      } catch {
+        setContacts([])
+      }
+    }
+    void run()
+  }, [])
+  return { contacts, load }
 }
 
 /**
@@ -57,6 +94,9 @@ export default function AdminMateMeetingInvitesCard({
         i === index ? { ...attendee, ...changes } : attendee,
       ),
     })
+  const { contacts, load: loadContacts } = useInboxContacts()
+  const skipEmail = edits.skipEmail === true
+  const people = `${recipients.length} ${recipients.length === 1 ? 'person' : 'people'}`
   const canSend =
     !sending && edits.title.trim().length > 0 && recipients.length > 0 && preview.offeredTimes > 0
 
@@ -112,7 +152,19 @@ export default function AdminMateMeetingInvitesCard({
         <textarea
           aria-label="Invite meeting topic"
           value={edits.meetingTopic ?? ''}
-          onChange={(event) => onChange({ meetingTopic: event.target.value })}
+          onChange={(event) => {
+            const meetingTopic = event.target.value
+            const title = edits.title.trim()
+            // Keep the title in step while it is blank, a placeholder or made
+            // from the previous topic; a title the admin typed is kept.
+            const follows =
+              !title || isGenericMeetingTitle(title) || title === titleFromTopic(edits.meetingTopic)
+            onChange(
+              follows && titleFromTopic(meetingTopic)
+                ? { meetingTopic, title: titleFromTopic(meetingTopic) }
+                : { meetingTopic },
+            )
+          }}
           rows={2}
           maxLength={2000}
           style={{ ...inputStyle, resize: 'vertical' }}
@@ -143,14 +195,27 @@ export default function AdminMateMeetingInvitesCard({
                 onChange={(event) => updateAttendee(index, { name: event.target.value })}
                 style={{ ...inputStyle, flex: 1 }}
               />
-              <input
-                aria-label={`Invitee ${index + 1} email`}
-                placeholder="Email"
-                type="email"
+              <AdminMateInviteeEmailInput
+                label={`Invitee ${index + 1} email`}
                 value={attendee.email}
-                maxLength={200}
-                onChange={(event) => updateAttendee(index, { email: event.target.value })}
-                style={{ ...inputStyle, flex: 1.4 }}
+                onChange={(email) => updateAttendee(index, { email })}
+                onPick={(contact) =>
+                  updateAttendee(index, {
+                    email: contact.email,
+                    // Fill the name from the email headers unless one was typed.
+                    ...(!attendee.name.trim() && contact.name ? { name: contact.name } : {}),
+                  })
+                }
+                contacts={contacts}
+                onWantContacts={loadContacts}
+                exclude={
+                  new Set(
+                    edits.attendees
+                      .filter((_, i) => i !== index)
+                      .map((other) => other.email.trim().toLowerCase()),
+                  )
+                }
+                style={{ flex: 1.4 }}
               />
               <button
                 type="button"
@@ -189,9 +254,18 @@ export default function AdminMateMeetingInvitesCard({
           </button>
         )}
       </fieldset>
+      <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 13 }}>
+        <input
+          type="checkbox"
+          checked={skipEmail}
+          onChange={(event) => onChange({ skipEmail: event.target.checked })}
+        />
+        Don&apos;t email invitees — I&apos;ll copy and share the links myself
+      </label>
       <div role="status" style={noticeStyle}>
-        {resend ? 'Some invitees were already emailed; sending again re-sends their link. ' : ''}
-        Check the details, then press Send or say “send it”.
+        {skipEmail
+          ? 'Nobody is emailed. Press Get links or say “send it” to get each invitee’s private link to copy.'
+          : `${resend ? 'Some invitees were already emailed; sending again re-sends their link. ' : ''}Check the details, then press Send or say “send it”.`}
       </div>
       <div style={{ display: 'flex', gap: 8 }}>
         <button
@@ -201,8 +275,12 @@ export default function AdminMateMeetingInvitesCard({
           style={{ ...primaryButtonStyle, flex: 1 }}
         >
           {sending
-            ? 'Sending…'
-            : `Send invites to ${recipients.length} ${recipients.length === 1 ? 'person' : 'people'}`}
+            ? skipEmail
+              ? 'Getting links…'
+              : 'Sending…'
+            : skipEmail
+              ? `Get invite links for ${people}`
+              : `Send invites to ${people}`}
         </button>
         <button type="button" onClick={onDiscard} disabled={sending} style={secondaryButtonStyle}>
           Not now

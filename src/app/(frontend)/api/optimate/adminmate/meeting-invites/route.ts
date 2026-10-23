@@ -4,6 +4,7 @@ import config from '@/payload.config'
 import { validateInviteEdits } from '@/lib/agents/adminmate/meeting-scheduler-tools'
 import {
   applyInviteEdits,
+  getSchedulerInviteLinks,
   invitePreviewFromDoc,
   SchedulerNotSendableError,
   sendSchedulerInvites,
@@ -43,7 +44,8 @@ export async function GET(request: Request): Promise<NextResponse> {
 /**
  * Saves the admin's confirmed edits, then emails each external attendee their
  * private scheduling link. Only runs after the admin presses Send (or says
- * "send it") on the card.
+ * "send it") on the card. With `skipEmail`, nothing is emailed: the links are
+ * returned for the admin to copy and share themselves.
  */
 export async function POST(request: Request): Promise<NextResponse> {
   const { payload, user, error } = await adminUser(request)
@@ -67,6 +69,19 @@ export async function POST(request: Request): Promise<NextResponse> {
       return NextResponse.json({ error: cause.message }, { status: 409 })
     console.error('[adminmate/meeting-invites] saving edits failed:', cause)
     return NextResponse.json({ error: 'The meeting details could not be saved' }, { status: 500 })
+  }
+
+  if (edits.skipEmail) {
+    const linksResult = await getSchedulerInviteLinks(payload, edits.schedulerId, { req })
+    if (!linksResult.ok)
+      return NextResponse.json({ error: linksResult.error }, { status: linksResult.status })
+    return NextResponse.json(
+      {
+        links: linksResult.links,
+        adminUrl: `/admin/collections/meeting-schedulers/${edits.schedulerId}`,
+      },
+      { headers: { 'Cache-Control': 'private, no-store' } },
+    )
   }
 
   const result = await sendSchedulerInvites(payload, edits.schedulerId, { req })

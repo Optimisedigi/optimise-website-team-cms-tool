@@ -90,6 +90,47 @@ function validateAttendee(raw: unknown, index: number): StagedMeetingAttendee {
   return { name, email, internalConfirmed: row.internalConfirmed === true }
 }
 
+/** Placeholder titles that say nothing about the meeting, e.g. "Availability Meeting". */
+const GENERIC_TITLES = new Set([
+  'availability',
+  'availability meeting',
+  'availability check',
+  'meeting',
+  'meeting scheduler',
+  'new meeting',
+  'schedule meeting',
+  'scheduling',
+  'scheduled meeting',
+  'untitled',
+])
+
+export function isGenericMeetingTitle(title: string): boolean {
+  return GENERIC_TITLES.has(title.trim().toLowerCase().replace(/\s+/g, ' '))
+}
+
+const TOPIC_TITLE_MAX = 120
+
+/**
+ * A meeting title made from "What's covered": its first line, without any
+ * bullet marker, shortened at a word to 120 characters. "" when there is no topic.
+ */
+export function titleFromTopic(topic: string | undefined): string {
+  const line =
+    (topic ?? '')
+      .split(/\r?\n/)
+      .map((row) =>
+        row
+          .trim()
+          .replace(/^(?:[-*•]|\d+[.)])\s+/, '')
+          .replace(/\s+/g, ' '),
+      )
+      .find(Boolean) ?? ''
+  if (line.length <= TOPIC_TITLE_MAX) return line
+  const cut = line.slice(0, TOPIC_TITLE_MAX - 1)
+  const space = cut.lastIndexOf(' ')
+  return `${(space > 40 ? cut.slice(0, space) : cut).trimEnd()}…`
+}
+
 /**
  * Re-validates a staged meeting scheduler. Runs inside the model loop and
  * again in the create route, so an edited browser payload gets the same field
@@ -97,7 +138,15 @@ function validateAttendee(raw: unknown, index: number): StagedMeetingAttendee {
  */
 export function validateStagedMeetingScheduler(raw: unknown): StagedMeetingScheduler {
   const input = asRecord(raw, 'input')
-  const title = boundedText(input.title, 'title', 200) ?? ''
+  const meetingTopic = boundedText(input.meetingTopic, 'meetingTopic', 2000, false)
+  const givenTitle = boundedText(input.title, 'title', 200, false) ?? ''
+  // Attendees see the title as the page heading: a blank or placeholder title
+  // ("Availability Meeting") becomes what's covered instead.
+  const title =
+    (!givenTitle || isGenericMeetingTitle(givenTitle)) && titleFromTopic(meetingTopic)
+      ? titleFromTopic(meetingTopic)
+      : givenTitle
+  if (!title) throw new Error('title is required (or give meetingTopic to use as the title)')
 
   const duration = String(input.durationMinutes ?? '30')
   if (!durations.has(duration))
@@ -138,7 +187,7 @@ export function validateStagedMeetingScheduler(raw: unknown): StagedMeetingSched
     title,
     ...(link ? { link } : {}),
     durationMinutes: duration as MeetingDuration,
-    meetingTopic: boundedText(input.meetingTopic, 'meetingTopic', 2000, false),
+    meetingTopic,
     timezone,
     dates,
     attendees,
@@ -209,7 +258,8 @@ export function createAdminMateMeetingSchedulerTools(
           type: 'string',
           minLength: 1,
           maxLength: 200,
-          description: "e.g. 'Q2 Strategy Review'.",
+          description:
+            "Shown to attendees as the heading of their scheduling page. Name what the meeting is about, usually the same as meetingTopic (e.g. 'ADT Google Ads + Marketing strategy'). Never a placeholder such as 'Availability Meeting' or 'Meeting'.",
         },
         clientId: { type: 'string', description: 'Existing client id from find_clients.' },
         prospectId: {
@@ -225,7 +275,8 @@ export function createAdminMateMeetingSchedulerTools(
         meetingTopic: {
           type: 'string',
           maxLength: 2000,
-          description: 'Short description shown to attendees.',
+          description:
+            "What's covered: a short description of what the meeting is about, shown to attendees.",
         },
         timezone: {
           type: 'string',
@@ -313,6 +364,8 @@ export interface MeetingInviteEdits {
   durationMinutes: MeetingDuration
   meetingTopic?: string
   attendees: StagedMeetingAttendee[]
+  /** Save the details and return each invitee's private link without emailing anyone. */
+  skipEmail?: boolean
 }
 
 /**
@@ -345,6 +398,7 @@ export function validateInviteEdits(raw: unknown): MeetingInviteEdits {
     durationMinutes: duration as MeetingDuration,
     meetingTopic: boundedText(input.meetingTopic, 'meetingTopic', 2000, false),
     attendees,
+    ...(input.skipEmail === true ? { skipEmail: true } : {}),
   }
 }
 

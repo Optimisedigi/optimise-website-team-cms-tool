@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react'
 import {
   MEETING_DURATION_OPTIONS,
+  isGenericMeetingTitle,
+  titleFromTopic,
   type StagedMeetingScheduler,
 } from '@/lib/agents/adminmate/meeting-scheduler-tools'
 
@@ -178,11 +180,23 @@ export default function AdminMateMeetingSchedulerCard({
         </select>
       </label>
       <label style={labelStyle}>
-        Topic
+        What&apos;s covered
         <textarea
           aria-label="Meeting topic"
           value={staged.meetingTopic ?? ''}
-          onChange={(event) => onChange({ meetingTopic: event.target.value })}
+          onChange={(event) => {
+            const meetingTopic = event.target.value
+            const title = staged.title.trim()
+            // Keep the title in step while it is still blank, a placeholder or
+            // made from the previous topic; a title the admin typed is kept.
+            const follows =
+              !title || isGenericMeetingTitle(title) || title === titleFromTopic(staged.meetingTopic)
+            onChange(
+              follows && titleFromTopic(meetingTopic)
+                ? { meetingTopic, title: titleFromTopic(meetingTopic) }
+                : { meetingTopic },
+            )
+          }}
           rows={2}
           maxLength={2000}
           style={{ ...inputStyle, resize: 'vertical' }}

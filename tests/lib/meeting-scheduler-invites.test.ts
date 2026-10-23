@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Payload, PayloadRequest } from 'payload'
 import {
   applyInviteEdits,
+  getSchedulerInviteLinks,
   SchedulerNotSendableError,
   sendSchedulerInvites,
 } from '@/lib/meeting-scheduler-invites'
@@ -96,12 +97,54 @@ describe('sendSchedulerInvites', () => {
     expect(update.mock.calls[0]?.[0].data.status).toBe('invites_sent')
   })
 
-  it('refuses when no meeting times are offered yet', async () => {
+  it('refuses when no meeting times are offered yet (send)', async () => {
     vi.stubEnv('BREVO_API_KEY', 'test-key')
     const { payload } = fakePayload({ ...baseDoc, generatedSlots: [] })
     expect(await sendSchedulerInvites(payload, 31, { fetchImpl: vi.fn() })).toMatchObject({
       ok: false,
       status: 400,
     })
+  })
+})
+
+describe('getSchedulerInviteLinks', () => {
+  afterEach(() => vi.unstubAllEnvs())
+
+  it('returns each external invitee’s link without emailing or marking anyone emailed', async () => {
+    vi.stubEnv('NEXT_PUBLIC_SERVER_URL', 'https://cms.example')
+    const fetchSpy = vi.fn()
+    vi.stubGlobal('fetch', fetchSpy)
+    const { payload, update } = fakePayload({
+      ...baseDoc,
+      attendees: [
+        ...baseDoc.attendees,
+        { name: 'Pe', email: 'pe@od.com', token: 'tok-pe', internalConfirmed: true },
+      ],
+    })
+
+    const result = await getSchedulerInviteLinks(payload, 31, { req })
+
+    expect(result).toEqual({
+      ok: true,
+      links: [
+        { name: 'Priya', email: 'priya@afp.com.au', url: 'https://cms.example/schedule/tok-priya' },
+        { name: 'Sam', email: 'sam@afp.com.au', url: 'https://cms.example/schedule/tok-sam' },
+      ],
+    })
+    expect(fetchSpy).not.toHaveBeenCalled()
+    expect(update).toHaveBeenCalledTimes(1)
+    expect(update.mock.calls[0]?.[0].data).toEqual({ status: 'invites_sent' })
+    vi.unstubAllGlobals()
+  })
+
+  it('leaves a scheduler that already has responses at its status', async () => {
+    const { payload, update } = fakePayload({ ...baseDoc, status: 'awaiting_responses' })
+    expect(await getSchedulerInviteLinks(payload, 31)).toMatchObject({ ok: true })
+    expect(update).not.toHaveBeenCalled()
+  })
+
+  it('refuses when no meeting times are offered yet', async () => {
+    const { payload } = fakePayload({ ...baseDoc, generatedSlots: [] })
+    expect(await getSchedulerInviteLinks(payload, 31)).toMatchObject({ ok: false, status: 400 })
   })
 })

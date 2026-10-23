@@ -202,6 +202,75 @@ export async function sendSchedulerInvites(
   return { ok: true, sentCount: results.filter((r) => r.ok).length, results }
 }
 
+/** An external invitee's private scheduling link, for the admin to share themselves. */
+export interface InviteLink {
+  name: string
+  email: string
+  url: string
+}
+
+export type InviteLinksResult =
+  | { ok: true; links: InviteLink[] }
+  | { ok: false; status: 400 | 404; error: string }
+
+/**
+ * Returns each external invitee's private scheduling link without emailing
+ * anyone, so the admin can share the links themselves. Moves a draft or
+ * slots-ready scheduler to "Invites Sent", since the links are now going out,
+ * but leaves each attendee's emailSentAt and delivery status untouched.
+ */
+export async function getSchedulerInviteLinks(
+  payload: Payload,
+  id: string | number,
+  options: { req?: PayloadRequest } = {},
+): Promise<InviteLinksResult> {
+  let doc: SchedulerDoc
+  try {
+    doc = (await payload.findByID({
+      collection: 'meeting-schedulers',
+      id,
+      overrideAccess: true,
+    })) as unknown as SchedulerDoc
+  } catch {
+    return { ok: false, status: 404, error: 'Not found' }
+  }
+  if (!doc.generatedSlots || doc.generatedSlots.length === 0) {
+    return {
+      ok: false,
+      status: 400,
+      error: 'Check available times and save them before sharing invite links.',
+    }
+  }
+  const baseUrl = publicBaseUrl()
+  const links = (doc.attendees ?? []).flatMap((attendee) =>
+    typeof attendee.email === 'string' &&
+    attendee.email &&
+    typeof attendee.token === 'string' &&
+    attendee.token &&
+    !attendee.internalConfirmed
+      ? [
+          {
+            name: typeof attendee.name === 'string' ? attendee.name : '',
+            email: attendee.email,
+            url: `${baseUrl}/schedule/${attendee.token}`,
+          },
+        ]
+      : [],
+  )
+  if (links.length === 0) {
+    return { ok: false, status: 400, error: 'Add at least one attendee before sharing invite links.' }
+  }
+  if (!doc.status || doc.status === 'draft' || doc.status === 'slots_generated') {
+    await payload.update({
+      collection: 'meeting-schedulers',
+      id,
+      data: { status: 'invites_sent' } as never,
+      ...(options.req ? { req: options.req } : {}),
+    })
+  }
+  return { ok: true, links }
+}
+
 export interface InviteEditsInput {
   title: string
   durationMinutes: string

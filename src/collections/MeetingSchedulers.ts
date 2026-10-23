@@ -167,7 +167,17 @@ export const MeetingSchedulers: CollectionConfig = {
               type: "text",
               required: true,
               admin: {
-                description: "Meeting title (e.g. 'Q2 Strategy Review')",
+                description:
+                  "Heading attendees see on their scheduling page. Name what the meeting is about (e.g. 'ADT Google Ads + Marketing strategy').",
+              },
+            },
+            {
+              name: "meetingTopic",
+              label: "What's covered",
+              type: "textarea",
+              admin: {
+                description:
+                  "Shown to attendees under “What's covered” on their scheduling page and in the invite email. Start lines with - for bullet points.",
               },
             },
             {
@@ -200,13 +210,6 @@ export const MeetingSchedulers: CollectionConfig = {
                   },
                 },
               ],
-            },
-            {
-              name: "meetingTopic",
-              type: "textarea",
-              admin: {
-                description: "Brief description shown to attendees",
-              },
             },
             {
               type: "row",

@@ -143,6 +143,48 @@ describe('AdminMateChat', () => {
     expect(messageBox).toHaveStyle({ height: '44px' })
   })
 
+  it('gets copyable invite links without emailing when the no-email box is ticked', async () => {
+    fetchMock.mockImplementation((url: string, init?: RequestInit) => {
+      if (url === '/api/optimate/adminmate/chat') {
+        return Promise.resolve(response({ reply: 'Check the invites.', stagedMeetingInvites: { schedulerId: '31' } }))
+      }
+      if (url === '/api/optimate/adminmate/meeting-invites?id=31') {
+        return Promise.resolve(response({
+          schedulerId: '31',
+          title: 'Availability Meeting',
+          durationMinutes: '30',
+          meetingTopic: 'ADT Google Ads + Marketing strategy',
+          timezone: 'Australia/Sydney',
+          status: 'slots_generated',
+          offeredTimes: 4,
+          attendees: [{ name: 'Helena', email: 'helena@flipside.com.au', internalConfirmed: false, alreadySent: false, responded: false }],
+          adminUrl: '/admin/collections/meeting-schedulers/31',
+        }))
+      }
+      if (url === '/api/optimate/adminmate/meeting-invites' && init?.method === 'POST') {
+        return Promise.resolve(response({
+          links: [{ name: 'Helena', email: 'helena@flipside.com.au', url: 'https://cms.example/schedule/tok-h' }],
+          adminUrl: '/admin/collections/meeting-schedulers/31',
+        }))
+      }
+      throw new Error(`Unexpected fetch ${url}`)
+    })
+    render(<AdminMateChat />)
+    fireEvent.click(screen.getByRole('button', { name: 'Dictate' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+
+    // The placeholder title starts as what's covered.
+    expect(await screen.findByRole('textbox', { name: 'Invite meeting title' })).toHaveValue('ADT Google Ads + Marketing strategy')
+    fireEvent.click(screen.getByRole('checkbox', { name: /Don.t email invitees/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Get invite links for 1 person' }))
+
+    expect(await screen.findByRole('textbox', { name: 'Invite link for helena@flipside.com.au' })).toHaveValue('https://cms.example/schedule/tok-h')
+    const postCalls = fetchMock.mock.calls.filter(([url, init]) => url === '/api/optimate/adminmate/meeting-invites' && init?.method === 'POST')
+    expect(postCalls).toHaveLength(1)
+    expect(JSON.parse(postCalls[0][1].body as string)).toMatchObject({ skipEmail: true, title: 'ADT Google Ads + Marketing strategy' })
+    expect(screen.queryByText(/Sent scheduling invites/)).not.toBeInTheDocument()
+  })
+
   it('stages a client, applies edits, and creates it once', async () => {
     let resolveCreate: ((value: ReturnType<typeof response>) => void) | undefined
     fetchMock.mockImplementation((url: string) => {

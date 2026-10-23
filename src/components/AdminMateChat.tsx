@@ -14,13 +14,16 @@ import AdminMateProposalCard from './AdminMateProposalCard'
 import type { StagedProposal } from '@/lib/agents/adminmate/proposal-tools'
 import AdminMateMeetingSchedulerCard from './AdminMateMeetingSchedulerCard'
 import AdminMateMeetingInvitesCard from './AdminMateMeetingInvitesCard'
+import AdminMateInviteLinksCard from './AdminMateInviteLinksCard'
 import {
+  isGenericMeetingTitle,
   isSendConfirmation,
   isVoiceConfirmation,
+  titleFromTopic,
   type MeetingInviteEdits,
   type StagedMeetingScheduler,
 } from '@/lib/agents/adminmate/meeting-scheduler-tools'
-import type { MeetingInvitePreview } from '@/lib/meeting-scheduler-invites'
+import type { InviteLink, MeetingInvitePreview } from '@/lib/meeting-scheduler-invites'
 
 /** Pause after the last dictated phrase before it is sent automatically. */
 const VOICE_SEND_DELAY_MS = 2500
@@ -101,6 +104,8 @@ export default function AdminMateChat({
   const [stagedMeeting, setStagedMeeting] = useState<StagedMeetingScheduler>()
   const [invitePreview, setInvitePreview] = useState<MeetingInvitePreview>()
   const [inviteEdits, setInviteEdits] = useState<MeetingInviteEdits>()
+  // Private links returned when the admin chose not to email the invites.
+  const [inviteLinks, setInviteLinks] = useState<{ title: string; links: InviteLink[]; adminUrl: string }>()
   const [stagedPayment, setStagedPayment] = useState<StagedOneOffPayment>()
   const [paymentPreview, setPaymentPreview] = useState<OneOffPaymentPreview>()
   const [missingDetails, setMissingDetails] = useState<string[]>([])
@@ -364,10 +369,15 @@ export default function AdminMateChat({
       const json = await response.json()
       if (!response.ok) throw new Error(json.error || 'Could not load the meeting invites')
       const preview = json as MeetingInvitePreview
+      setInviteLinks(undefined)
       setInvitePreview(preview)
       setInviteEdits({
         schedulerId: preview.schedulerId,
-        title: preview.title,
+        // A placeholder title ("Availability Meeting") starts as what's covered.
+        title:
+          isGenericMeetingTitle(preview.title) && titleFromTopic(preview.meetingTopic)
+            ? titleFromTopic(preview.meetingTopic)
+            : preview.title,
         durationMinutes: preview.durationMinutes as MeetingInviteEdits['durationMinutes'],
         meetingTopic: preview.meetingTopic,
         attendees: preview.attendees.map(({ name, email, internalConfirmed }) => ({ name, email, internalConfirmed })),
@@ -393,6 +403,16 @@ export default function AdminMateChat({
       })
       const json = await response.json()
       if (!response.ok) throw new Error(json.error || 'Could not send the invites')
+      if (inviteEdits.skipEmail) {
+        const links: InviteLink[] = Array.isArray(json.links) ? json.links : []
+        const text = `No emails sent. Copy the invite ${links.length === 1 ? 'link' : 'links'} below to share ${links.length === 1 ? 'it' : 'them'} yourself.`
+        setInviteLinks({ title: inviteEdits.title, links, adminUrl: json.adminUrl })
+        setSuccess(text)
+        setSuccessLink({ text, href: json.adminUrl })
+        setInvitePreview(undefined)
+        setInviteEdits(undefined)
+        return text
+      }
       const failed: string[] = Array.isArray(json.failed) ? json.failed : []
       const text = `Sent scheduling invites to ${json.sentCount} ${json.sentCount === 1 ? 'person' : 'people'}.${
         failed.length ? ` Not sent to ${failed.join(', ')}.` : ''
@@ -711,6 +731,14 @@ export default function AdminMateChat({
             onChange={(changes) => setInviteEdits((current) => current && { ...current, ...changes })}
             onSend={() => void sendInvites()}
             onDiscard={() => { setInvitePreview(undefined); setInviteEdits(undefined) }}
+          />
+        )}
+        {inviteLinks && (
+          <AdminMateInviteLinksCard
+            title={inviteLinks.title}
+            links={inviteLinks.links}
+            adminUrl={inviteLinks.adminUrl}
+            onDismiss={() => setInviteLinks(undefined)}
           />
         )}
         {stagedContract && (

@@ -5,6 +5,7 @@ import {
   isVoiceConfirmation,
   validateInviteEdits,
   validateStagedMeetingScheduler,
+  titleFromTopic,
 } from '@/lib/agents/adminmate/meeting-scheduler-tools'
 
 const base = {
@@ -28,7 +29,30 @@ describe('validateStagedMeetingScheduler', () => {
     })
   })
 
+  it('replaces a placeholder or blank title with what is covered', () => {
+    const topic = 'ADT Google Ads + Marketing strategy'
+    expect(
+      validateStagedMeetingScheduler({ ...base, title: 'Availability Meeting', meetingTopic: topic })
+        .title,
+    ).toBe(topic)
+    expect(validateStagedMeetingScheduler({ ...base, title: '', meetingTopic: `- ${topic}\n- Budget` }).title).toBe(topic)
+    expect(
+      validateStagedMeetingScheduler({ ...base, title: 'Q4 review', meetingTopic: topic }).title,
+    ).toBe('Q4 review')
+    // No topic to fall back on: the placeholder stays rather than failing.
+    expect(validateStagedMeetingScheduler({ ...base, title: 'Availability Meeting' }).title).toBe(
+      'Availability Meeting',
+    )
+  })
+
+  it('shortens a long topic at a word for the title', () => {
+    const title = titleFromTopic(`${'word '.repeat(40)}end`)
+    expect(title.length).toBeLessThanOrEqual(120)
+    expect(title.endsWith('word…')).toBe(true)
+  })
+
   it.each([
+    ['no title or topic', { ...base, title: '' }, /title is required/],
     ['no dates', { title: 'x', dates: [] }, /at least one/],
     [
       'impossible date',
@@ -90,10 +114,17 @@ describe('validateInviteEdits', () => {
   }
 
   it('normalises emails and defaults the duration', () => {
-    expect(validateInviteEdits(edits)).toMatchObject({
+    const result = validateInviteEdits(edits)
+    expect(result).toMatchObject({
       durationMinutes: '30',
       attendees: [{ email: 'priya@afp.com.au', internalConfirmed: false }],
     })
+    expect(result.skipEmail).toBeUndefined()
+  })
+
+  it('keeps skipEmail only when it is exactly true', () => {
+    expect(validateInviteEdits({ ...edits, skipEmail: true }).skipEmail).toBe(true)
+    expect(validateInviteEdits({ ...edits, skipEmail: 'yes' }).skipEmail).toBeUndefined()
   })
 
   it.each([
