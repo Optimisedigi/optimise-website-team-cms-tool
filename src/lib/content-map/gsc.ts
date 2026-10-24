@@ -303,3 +303,21 @@ export function buildGscSignals(doc: Doc | null, snapshot: ContentMapSnapshot | 
 export function gscRows(doc: Doc | null): GscRow[] {
   return rowList(doc?.queries);
 }
+
+/** Sydney calendar day (YYYY-MM-DD) — "a new day" for the team means their day, not UTC's. */
+export function sydneyDay(ms: number): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Sydney", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(ms));
+}
+
+/**
+ * Free daily refresh (user decision 2026-10-24): the first time a client's page
+ * is opened on a new Sydney day, pull that client's Search Console once (free:
+ * Google's API with the client's own login). Only Search Console: everything
+ * paid (AI citations, research) still waits for its button or the schedule.
+ * Never throws; skipped when not connected or already pulled today.
+ */
+export function needsDailyGsc(client: Doc, last: Doc | null, now: number): boolean {
+  if (client.gscConnected !== true) return false;
+  const at = Date.parse(String(last?.pulledAt ?? ""));
+  return !Number.isFinite(at) || sydneyDay(at) !== sydneyDay(now);
+}

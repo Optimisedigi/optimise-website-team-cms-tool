@@ -7,7 +7,6 @@ import {
   applyCitationRetention,
   brandTerms,
   buildCitationsView,
-  maybeStartWeeklyCitations,
   needsInsights,
   startCitationRun,
   upsertCitationRun,
@@ -295,24 +294,6 @@ describe("citation runs", () => {
     expect(needsInsights(p.store["content-map-citations"]?.[0])).toBe(false);
   });
 
-  it("weekly chain starts only when the last completed run is ≥ 6 days old", async () => {
-    vi.stubEnv("GROWTH_TOOLS_URL", "http://gt.test");
-    vi.stubEnv("INTERNAL_API_KEY", "k");
-    const f = fetchOk("w1");
-    vi.stubGlobal("fetch", f);
-    const p = createFakePayload({
-      clients: [client],
-      "content-map-questions": [{ client: 7, topic: "vietnam", question: "Is Vietnam good for software?", source: "team", active: true, questionGroup: "planned" }],
-      "content-map-citations": [{ client: 7, runId: "old", status: "completed", generatedAt: new Date(NOW - 3 * 86_400_000).toISOString() }],
-    });
-    const call = model("{\"questions\":[]}");
-    expect(await maybeStartWeeklyCitations(p as never, "7", { now: () => NOW, call })).toBeNull();
-    expect(f).not.toHaveBeenCalled();
-    expect(await maybeStartWeeklyCitations(p as never, "7", { now: () => NOW + 4 * 86_400_000, call })).toMatchObject({ ok: true });
-    expect(f).toHaveBeenCalledTimes(1);
-    vi.unstubAllGlobals();
-    vi.unstubAllEnvs();
-  });
 });
 
 describe("plan + view", () => {

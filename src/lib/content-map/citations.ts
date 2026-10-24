@@ -41,7 +41,6 @@ type Call = (p: Payload, i: { system: string; user: string; maxTokens?: number; 
 export const RETAIN_CITATION_RUNS = 12;
 export const CITATION_REUSE_MS = 60 * 60 * 1000;
 export const CITATION_POLL_AFTER_MS = 3 * 60 * 1000;
-export const WEEKLY_MIN_AGE_MS = 6 * 24 * 60 * 60 * 1000;
 const MAX_QUESTIONS = MAX_TRACKED_QUESTIONS;
 const CONCURRENCY = 4;
 /** Self-heal waits this long after the run finished / the last insights job started. */
@@ -272,15 +271,6 @@ export async function pollStaleCitationRun(payload: Payload, run: Doc, now: () =
   );
   if (needsInsights(out.doc)) handOffInsights("citations", String(out.doc.id), () => scheduleInsights(payload, out.doc));
   return out.doc;
-}
-
-/** Weekly chain: start a citation run when the last completed one is ≥ 6 days old (or there is none). */
-export async function maybeStartWeeklyCitations(payload: Payload, clientId: string, deps: { now?: () => number; call?: Call } = {}): Promise<CitationRunResult | null> {
-  const now = deps.now ?? Date.now;
-  const [last] = await latestCompletedCitations(payload, clientId);
-  const at = Date.parse(String(last?.generatedAt ?? ""));
-  if (last && Number.isFinite(at) && now() - at < WEEKLY_MIN_AGE_MS) return null;
-  return startCitationRun(payload, clientId, deps);
 }
 
 // ─── Insights ─────────────────────────────────────────────────────────────

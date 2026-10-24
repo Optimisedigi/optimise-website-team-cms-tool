@@ -20,7 +20,7 @@ import { createHash } from "crypto";
 import { after } from "next/server";
 import type { Payload } from "payload";
 import { authoritiesFromClient } from "./authorities";
-import { buildGscSignals, latestGsc, maybePullWeeklyGsc, pullGsc, type GscPullResult } from "./gsc";
+import { buildGscSignals, latestGsc, maybePullWeeklyGsc, needsDailyGsc, pullGsc, type GscPullResult } from "./gsc";
 import { latestCompletedDoc, normTitle, toRecommendation } from "./ideas";
 import { callContentMapModel, extractJson, type ContentMapLlmResult } from "./llm";
 import { handOffInsights } from "./handoff";
@@ -864,6 +864,29 @@ export async function decideResearchIdea(
 
 // ─── State + schedule ─────────────────────────────────────────────────────
 
+/**
+ * Pull Search Console after the response, then re-place the latest research
+ * with the new searches (subscription models, handed to the 300 s route).
+ * A second open the same day sees today's pull and does nothing.
+ */
+function scheduleDailyGsc(payload: Payload, clientId: string, done: Doc | null, now: () => number): void {
+  const job = async () => {
+    const res = await pullGsc(payload, clientId, { now }).catch((err: Error) => ({ ok: false, connected: false, doc: null, error: err.message }) as GscPullResult);
+    if (!res.ok) {
+      console.warn("[content-map] daily Search Console refresh skipped:", res.error);
+      return;
+    }
+    if (done && done.status === "completed" && needsResearchInsights(done, res.doc)) {
+      handOffInsights("research", String(done.id), () => scheduleResearchInsights(payload, done));
+    }
+  };
+  try {
+    after(job);
+  } catch {
+    void job();
+  }
+}
+
 /** Research view, in-progress list and research plan items for state.ts. */
 export async function loadResearchState(
   payload: Payload,
@@ -877,6 +900,9 @@ export async function loadResearchState(
   ]);
   let latest = latestRow;
   let done = completed[0] ?? null;
+  // Free once-a-day refresh: first open of this client's page on a new Sydney
+  // day pulls Search Console after the response (paid data never refreshes here).
+  if (needsDailyGsc(input.client, gsc, now())) scheduleDailyGsc(payload, input.clientId, done, now);
   if (latest?.status === "running") {
     const polled = await pollStaleResearchRun(payload, latest, now);
     if (polled.status === "completed" && polled.id !== done?.id) {

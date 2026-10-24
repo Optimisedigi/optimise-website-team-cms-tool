@@ -17,13 +17,14 @@ vi.mock("@/lib/content-map/ideas", () => ({
     return { ok: true };
   }),
 }));
-vi.mock("@/lib/content-map/citations", () => ({ maybeStartWeeklyCitations: vi.fn(async () => { h.events.push("citations"); return null; }) }));
+const startCitationRun = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/content-map/citations", () => ({ startCitationRun }));
 vi.mock("@/lib/content-map/placement", () => ({ runResearchSchedule: vi.fn(async () => { h.events.push("research+gsc"); return { gsc: null, research: null, placed: false }; }) }));
 
 import { POST } from "@/app/(frontend)/api/content-map/ingest/route";
 
 describe("analysis ingest chain", () => {
-  it("starts research + GSC immediately, citations only after ideas", async () => {
+  it("starts research + GSC immediately with the ideas, and never starts the paid AI citation check", async () => {
     vi.stubEnv("CMS_API_KEY", "cms-key");
     const res = await POST(new Request("http://x/api/content-map/ingest", {
       method: "POST",
@@ -35,7 +36,8 @@ describe("analysis ingest chain", () => {
     await vi.waitFor(() => expect(h.events).toEqual(["ideas:start", "research+gsc"]));
     h.releaseIdeas();
     await job;
-    expect(h.events).toEqual(["ideas:start", "research+gsc", "ideas:end", "citations"]);
+    expect(h.events).toEqual(["ideas:start", "research+gsc", "ideas:end"]);
+    expect(startCitationRun).not.toHaveBeenCalled();
     vi.unstubAllEnvs();
   });
 });

@@ -138,18 +138,17 @@ describe("POST /api/content-map/citations/ingest", () => {
 });
 
 describe("weekly chain", () => {
-  it("after an analysis ingest, the post-response job starts a citation run (none in the last 6 days)", async () => {
-    holder.payload.store["content-map-questions"] = [{ id: 1, client: 7, topic: "vietnam", question: "Is Vietnam good?", source: "team", active: true }];
+  it("an analysis ingest never starts the paid AI citation check, even when none ran for years", async () => {
+    holder.payload.store["content-map-questions"] = [{ id: 1, client: 7, topic: "vietnam", question: "Is Vietnam good?", source: "team", active: true, questionGroup: "planned" }];
     holder.payload.store["content-map-citations"] = [{ client: 7, runId: "old", status: "completed", generatedAt: "2020-01-01T00:00:00.000Z" }];
     fetchMock.mockImplementation(async () => new Response(JSON.stringify({ runId: "w1", status: "running" }), { status: 202 }));
     const withIdeas = { ...sample, ai: { ...sample.ai, ideas: { model: "m", generatedAt: "2026-10-22T00:00:00.000Z" } } };
     const res = await ingest(req("/x", { clientId: "7", runId: "a1", status: "completed", snapshot: withIdeas }, { Authorization: "users API-Key cms-key" }));
     expect(res.status).toBe(200);
     expect(afterMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock).not.toHaveBeenCalled();
     await (afterMock.mock.calls[0]?.[0] as () => Promise<void>)();
-    expect(fetchMock.mock.calls.filter(([u]) => String(u).endsWith("/api/content-map/citations"))).toHaveLength(1);
-    expect(holder.payload.store["content-map-citations"]?.some((d) => d.runId === "w1")).toBe(true);
+    expect(fetchMock.mock.calls.filter(([u]) => String(u).endsWith("/api/content-map/citations"))).toHaveLength(0);
+    expect(holder.payload.store["content-map-citations"]?.some((d) => d.runId === "w1")).toBe(false);
   });
 });
 

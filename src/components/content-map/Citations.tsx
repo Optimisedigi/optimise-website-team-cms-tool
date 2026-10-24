@@ -28,8 +28,8 @@ const TILE_LABEL = "font-size:11.5px;color:oklch(0.52 0.01 85)";
 const BODY = "font-size:13px;line-height:1.5;color:oklch(0.52 0.01 85);text-wrap:pretty";
 const MONO_MUTED = "font:10.5px 'JetBrains Mono',monospace;color:oklch(0.52 0.01 85)";
 const AMBER = "oklch(0.62 0.14 62)";
-const CLIENT_INTRO = "Each week we ask ChatGPT, Perplexity, Gemini and Google's AI Overviews the questions your buyers ask, and track whether they cite your site.";
-const TEAM_INTRO = "The tracked questions, asked of each AI tool every week. Green means the answer cites the client's site.";
+const CLIENT_INTRO = "We ask ChatGPT, Perplexity, Gemini and Google's AI Overviews the questions your buyers ask, and track whether they cite your site.";
+const TEAM_INTRO = "The tracked questions, asked of each AI tool when you press Check AI citations (paid, about $0.018 a question). Green means the answer cites the client's site.";
 const GROUP_TITLE: Record<QuestionGroup, string> = { existing: "Your published articles", planned: "Planned and suggested, by topic" };
 const GROUP_INTRO: Record<Audience, Record<QuestionGroup, string>> = {
   team: {
@@ -101,7 +101,7 @@ export function Citations({ model, citations, audience, width, onOpenNode, team 
           ) : status && citations?.status === "running" ? <span style={st("font-size:12px;color:oklch(0.52 0.01 85)")}>Checking again now…</span> : null}
         </div>
 
-        {!questions.length && !team ? <div style={st(`${BODY};padding:20px 4px`)}>We haven&apos;t checked AI tools yet. Results appear here after the first weekly check.</div> : null}
+        {!questions.length && !team ? <div style={st(`${BODY};padding:20px 4px`)}>We haven&apos;t checked AI tools yet. Results appear here after the first check.</div> : null}
 
         {(["existing", "planned"] as const).map((g) => {
           const inGroup = questions.filter((q) => q.group === g);
@@ -237,7 +237,7 @@ export function Citations({ model, citations, audience, width, onOpenNode, team 
           ) : null}
           <div style={st(BODY)}>{isClient
             ? "When an AI tool cites a site, it's sending its readers there. The articles we plan answer these questions better than the sites cited today."
-            : "One question per published article, then up to 2 per topic for planned articles and suggestions. Checked weekly after the Monday analysis. Gaps become plan items (From AI citations) and refresh tasks."}</div>
+            : "One question per published article, then up to 2 per topic for planned articles and suggestions. Only checked when you press Check AI citations, so nothing is spent in the background. Gaps become plan items (From AI citations) and refresh tasks."}</div>
         </div>
       </aside>
     </div>
