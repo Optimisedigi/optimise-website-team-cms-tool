@@ -7,31 +7,37 @@ const USERS = 'users' as never
 const NEGATIVE_KEYWORDS_FEATURE = 'negative-keyword-lists'
 const NOTIFICATION_KIND = 'negative-keywords-needs-review'
 
+type UserRow = { id: number | string; role?: string }
+
 /**
- * Fan out a bell notification + activity-log entry when a month of monthly
- * negative-keyword review is marked complete while it still contains terms
- * flagged "needs review".
+ * Bell notifications when a month of monthly negative-keyword review is
+ * marked complete.
  *
- * Recipients: every user with role `admin` OR whose effective feature set
- * includes `negative-keyword-lists` (the people who can use the tool).
+ *  - Staff (non-admins who can use the negatives tool) get the "N terms need
+ *    review" alert, only when the month still has terms flagged "needs review".
+ *  - Admins get one "ready for your review" alert every time a month is marked
+ *    complete, except the admin who marked it complete themselves.
+ *
+ * Also logs an activity entry when terms still need review.
  */
-export async function notifyMonthlyNegativesNeedReview(
+export async function notifyMonthlyNegativesComplete(
   payload: Payload,
   args: {
     clientId: number
     clientName: string
-    clientSlug: string
     yearMonth: string
     needsReviewCount: number
     triggeredByUserId?: number | string | null
+    triggeredByName?: string | null
   },
 ): Promise<void> {
-  const { clientId, clientName, clientSlug, yearMonth, needsReviewCount } = args
-  if (needsReviewCount <= 0) return
-
-  const url = `/admin/collections/clients/${clientId}`
-  const title = `${needsReviewCount} monthly negative${needsReviewCount === 1 ? '' : 's'} need review — ${clientName}`
-  const body = `${monthLabel(yearMonth)} review completed with ${needsReviewCount} term${needsReviewCount === 1 ? '' : 's'} flagged "needs review".`
+  const { clientId, clientName, yearMonth, needsReviewCount } = args
+  const month = monthLabel(yearMonth)
+  const url = `/admin/monthly-keyword-selection?clientId=${clientId}`
+  const flagged = `${needsReviewCount} term${needsReviewCount === 1 ? '' : 's'} flagged "needs review"`
+  const needsReviewTitle = `${needsReviewCount} monthly negative${needsReviewCount === 1 ? '' : 's'} need review — ${clientName}`
+  const needsReviewBody = `${month} review completed with ${flagged}.`
+  const triggeredBy = args.triggeredByUserId == null ? '' : String(args.triggeredByUserId)
 
   try {
     const usersResult = await payload.find({
@@ -41,20 +47,40 @@ export async function notifyMonthlyNegativesNeedReview(
       depth: 1,
       overrideAccess: true,
     })
+    const users = usersResult.docs as UserRow[]
+    const admins = users.filter((u) => u?.role === 'admin' && String(u.id) !== triggeredBy)
+    const staff = needsReviewCount > 0
+      ? users.filter((u) => u?.role !== 'admin' && getEffectiveFeatures(u).has(NEGATIVE_KEYWORDS_FEATURE))
+      : []
 
-    const recipients = (usersResult.docs as Array<{ id: number | string; role?: string }>).filter((u) => {
-      if (u?.role === 'admin') return true
-      return getEffectiveFeatures(u).has(NEGATIVE_KEYWORDS_FEATURE)
-    })
+    const completedBy = args.triggeredByName?.trim()
+    const adminBody = [
+      `${month} marked complete${completedBy ? ` by ${completedBy}` : ''}.`,
+      needsReviewCount > 0 ? `${flagged}.` : 'No terms flagged "needs review".',
+    ].join(' ')
 
-    for (const recipient of recipients) {
+    for (const admin of admins) {
       await payload.create({
         collection: NOTIFICATIONS,
         data: {
-          recipient: recipient.id,
+          recipient: admin.id,
           kind: NOTIFICATION_KIND,
-          title,
-          body,
+          title: `${month} negatives ready for your review — ${clientName}`,
+          body: adminBody,
+          url,
+          relatedClient: clientId,
+        } as never,
+        overrideAccess: true,
+      })
+    }
+    for (const member of staff) {
+      await payload.create({
+        collection: NOTIFICATIONS,
+        data: {
+          recipient: member.id,
+          kind: NOTIFICATION_KIND,
+          title: needsReviewTitle,
+          body: needsReviewBody,
           url,
           relatedClient: clientId,
         } as never,
@@ -65,19 +91,18 @@ export async function notifyMonthlyNegativesNeedReview(
     payload.logger?.warn?.(`[monthly-negatives-notify] notification fan-out failed: ${err}`)
   }
 
+  if (needsReviewCount <= 0) return
   try {
     await logActivity(payload, {
       type: 'monthly_negative_needs_review',
-      title,
-      description: body,
+      title: needsReviewTitle,
+      description: needsReviewBody,
       client: clientId,
       ...(args.triggeredByUserId ? { user: args.triggeredByUserId } : {}),
     })
   } catch (err) {
     payload.logger?.warn?.(`[monthly-negatives-notify] activity log failed: ${err}`)
   }
-
-  void clientSlug
 }
 
 function monthLabel(yearMonth: string): string {

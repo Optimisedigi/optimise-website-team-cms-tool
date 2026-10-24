@@ -3,6 +3,7 @@ import crypto from "crypto";
 import { createLocalReq, getPayload } from "payload";
 import config from "@/payload.config";
 import { logActivity } from "@/lib/activity-log";
+import { KEYWORD_COST_FINDER_ACTIVITY_TYPE, perthDateTime, usageWeek, weekLabel, weeklyUsageUrl } from "@/lib/keyword-cost-finder-usage";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +24,7 @@ type AdminUser = {
 };
 
 const NOTIFICATION_KIND = "google-ads-keyword-cost-finder-usage";
+const ACTIVITY_TYPE = KEYWORD_COST_FINDER_ACTIVITY_TYPE;
 
 function isAuthorized(request: NextRequest) {
   const apiKey = process.env.GOOGLE_ADS_ESTIMATE_WEBHOOK_API_KEY || process.env.AUDIT_API_KEY;
@@ -87,7 +89,7 @@ export async function POST(request: NextRequest) {
   const source = sanitizeText(body.source, "unknown");
   const usedAt = eventTime(body.usedAt);
   const activity = {
-    type: "google_ads_keyword_cost_finder_used" as const,
+    type: ACTIVITY_TYPE,
     title: "Google Ads keyword cost finder used",
     description: `${keyword} in ${targetArea} — ${status}/${source}`,
     targetUrl: "/admin/collections/activity-log?where[type][equals]=google_ads_keyword_cost_finder_used",
@@ -106,7 +108,7 @@ export async function POST(request: NextRequest) {
   try {
     const payloadReq = await createLocalReq({}, payload);
     payloadReq.transactionID = transactionID;
-    const activityDoc = await payload.create({
+    await payload.create({
       collection: "activity-log" as never,
       overrideAccess: true,
       req: payloadReq,
@@ -117,20 +119,67 @@ export async function POST(request: NextRequest) {
         targetUrl: activity.targetUrl,
         createdAt: usedAt.toISOString(),
       } as never,
-    }) as unknown as { id: string | number };
-    await payload.create({
-      collection: "notifications" as never,
+    });
+
+    // One notification per Monday-Sunday week: the count goes up and it shows
+    // the latest use, instead of one row per search.
+    const week = usageWeek(usedAt);
+    const url = weeklyUsageUrl(week.start);
+    const usesThisWeek = await payload.count({
+      collection: "activity-log" as never,
+      where: {
+        and: [
+          { type: { equals: ACTIVITY_TYPE } },
+          { createdAt: { greater_than_equal: week.start.toISOString() } },
+          { createdAt: { less_than: week.end.toISOString() } },
+        ],
+      } as never,
       overrideAccess: true,
       req: payloadReq,
-      data: {
-        recipient: recipient.id,
-        kind: NOTIFICATION_KIND,
-        title: "Google Ads keyword cost finder used",
-        body: `${keyword} in ${targetArea} — ${status}/${source} at ${usedAt.toLocaleString("en-AU", { timeZone: "Australia/Perth" })}`,
-        url: `/admin/collections/activity-log/${activityDoc.id}`,
-        createdAt: usedAt.toISOString(),
-      } as never,
     });
+    const existing = await payload.find({
+      collection: "notifications" as never,
+      where: {
+        and: [
+          { recipient: { equals: recipient.id } },
+          { kind: { equals: NOTIFICATION_KIND } },
+          { url: { equals: url } },
+        ],
+      } as never,
+      limit: 1,
+      depth: 0,
+      overrideAccess: true,
+      req: payloadReq,
+    });
+    const current = existing.docs[0] as { id: string | number; createdAt?: string; body?: string } | undefined;
+    const latestKnown = current?.createdAt ? new Date(current.createdAt) : null;
+    const isLatest = !latestKnown || Number.isNaN(latestKnown.getTime()) || usedAt >= latestKnown;
+    const count = Math.max(usesThisWeek.totalDocs, 1);
+    const data = {
+      title: `Google Ads keyword cost finder used this week (${count})`,
+      // An out-of-order (older) event bumps the count but keeps the latest-use line.
+      body: isLatest || !current?.body
+        ? `Week of ${weekLabel(week.monday)}. Latest: ${keyword} in ${targetArea}, ${status}/${source}, ${perthDateTime(usedAt)}`
+        : current.body,
+      readAt: null,
+      ...(isLatest ? { createdAt: usedAt.toISOString() } : {}),
+    };
+    if (current) {
+      await payload.update({
+        collection: "notifications" as never,
+        id: current.id,
+        overrideAccess: true,
+        req: payloadReq,
+        data: data as never,
+      });
+    } else {
+      await payload.create({
+        collection: "notifications" as never,
+        overrideAccess: true,
+        req: payloadReq,
+        data: { ...data, recipient: recipient.id, kind: NOTIFICATION_KIND, url, createdAt: usedAt.toISOString() } as never,
+      });
+    }
     await payload.db.commitTransaction(transactionID);
   } catch (error) {
     await payload.db.rollbackTransaction(transactionID).catch(() => undefined);
@@ -138,8 +187,8 @@ export async function POST(request: NextRequest) {
   }
 
   const total = await payload.count({
-    collection: "notifications" as never,
-    where: { kind: { equals: NOTIFICATION_KIND } } as never,
+    collection: "activity-log" as never,
+    where: { type: { equals: ACTIVITY_TYPE } } as never,
     overrideAccess: true,
   });
 

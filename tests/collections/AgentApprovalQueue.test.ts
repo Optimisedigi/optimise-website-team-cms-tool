@@ -1,93 +1,9 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { describe, expect, it } from "vitest";
 import { AgentApprovalQueue } from "@/collections/AgentApprovalQueue";
-import {
-  clearApprovalNotifications,
-  fanOutApprovalNotifications,
-} from "@/lib/agent-approval-notifications";
-
-vi.mock("@/lib/agent-approval-notifications", () => ({
-  fanOutApprovalNotifications: vi.fn().mockResolvedValue(1),
-  clearApprovalNotifications: vi.fn().mockResolvedValue(1),
-}));
-
-function getAfterChangeHooks() {
-  return AgentApprovalQueue.hooks?.afterChange ?? [];
-}
 
 describe("AgentApprovalQueue Collection", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it("fans out bell notifications when an approval is created pending", async () => {
-    const hook = getAfterChangeHooks()[0];
-    expect(hook).toBeDefined();
-
-    await hook({
-      doc: {
-        id: 42,
-        status: "pending",
-        agentRunId: "run-123",
-        agentName: "optimate-google-ads",
-        proposalType: "budget-reallocation",
-        title: "Move budget to high-intent search",
-        client: 7,
-      },
-      operation: "create",
-      req: { payload: { id: "payload" } },
-    } as any);
-
-    expect(fanOutApprovalNotifications).toHaveBeenCalledWith(
-      { id: "payload" },
-      {
-        approvalId: 42,
-        agentRunId: "run-123",
-        agentName: "optimate-google-ads",
-        proposalType: "budget-reallocation",
-        title: "Move budget to high-intent search",
-        clientId: 7,
-      },
-    );
-    expect(clearApprovalNotifications).not.toHaveBeenCalled();
-  });
-
-  it("defers bell notifications until the queued approval is persisted", async () => {
-    const hook = getAfterChangeHooks()[0];
-    await hook({
-      doc: { id: 86, status: "pending" },
-      operation: "create",
-      req: { payload: { id: "payload" }, context: { deferApprovalNotifications: true } },
-    } as any);
-    expect(fanOutApprovalNotifications).not.toHaveBeenCalled();
-  });
-
-  it("clears related bell notifications when an approval is actioned", async () => {
-    const hook = getAfterChangeHooks()[0];
-
-    await hook({
-      doc: {
-        id: 42,
-        status: "approved",
-        agentRunId: "run-123",
-        agentName: "optimate-google-ads",
-        proposalType: "budget-reallocation",
-        title: "Move budget",
-      },
-      operation: "update",
-      req: { payload: { id: "payload" } },
-    } as any);
-
-    expect(clearApprovalNotifications).toHaveBeenCalledWith({ id: "payload" }, 42);
-    expect(fanOutApprovalNotifications).not.toHaveBeenCalled();
-  });
-
-  it("leaves notification cleanup to the caller when it is deferred", async () => {
-    const hook = getAfterChangeHooks()[0];
-    await hook({
-      doc: { id: 87, status: "rejected" },
-      operation: "update",
-      req: { payload: { id: "payload" }, context: { deferApprovalNotifications: true } },
-    } as any);
-    expect(clearApprovalNotifications).not.toHaveBeenCalled();
+  it("raises no bell notifications on create or status change", () => {
+    // Approvals are reviewed on /admin/agent-approvals; the bell fan-out was removed.
+    expect(AgentApprovalQueue.hooks?.afterChange ?? []).toHaveLength(0);
   });
 });

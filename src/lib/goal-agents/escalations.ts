@@ -11,8 +11,8 @@
  * so the bell clears for everyone on their next poll without per-user dismissal
  * bookkeeping.
  *
- * Patterned after `src/lib/agent-approval-notifications.ts` — see that module
- * for the original design notes; this is the goal-agents equivalent.
+ * Originally patterned after the agent-approval bell fan-out, which has since
+ * been removed (approvals are reviewed on /admin/agent-approvals only).
  */
 
 import type { Payload } from "payload";

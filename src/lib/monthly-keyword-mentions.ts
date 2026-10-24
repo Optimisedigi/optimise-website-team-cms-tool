@@ -38,6 +38,23 @@ export async function resolveMentionableUserIds(
   return requestedIds.filter((id) => allowed.has(id))
 }
 
+/**
+ * Drop admins from a list of recipients. Admins only hear about monthly
+ * negatives when a month is marked complete or when someone tags them
+ * directly, so automatic (non-tag) alerts such as "your flagged term was
+ * added" go to staff only. A lookup miss keeps the recipient.
+ */
+export async function withoutAdmins(payload: Pick<Payload, 'findByID'>, recipientIds: readonly string[]): Promise<string[]> {
+  const kept: string[] = []
+  for (const id of recipientIds) {
+    const user = await payload
+      .findByID({ collection: 'users', id, depth: 0, overrideAccess: true })
+      .catch(() => null) as { role?: string } | null
+    if (user?.role !== 'admin') kept.push(id)
+  }
+  return kept
+}
+
 export async function notifyTaggedUsers(
   payload: Payload,
   args: {
@@ -48,7 +65,7 @@ export async function notifyTaggedUsers(
     yearMonth: string
     searchTerm: string
     comment: string
-    kind?: 'negative-keywords-needs-review' | 'negative-keywords-removed'
+    kind?: 'negative-keywords-needs-review'
     title?: string | ((clientName: string) => string)
   },
 ): Promise<number> {

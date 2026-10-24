@@ -4,7 +4,7 @@ import config from '@/payload.config'
 import { userHasFeature } from '@/lib/access'
 import { logActivity } from '@/lib/activity-log'
 import { findSelectionRows, findSelectionRowsByKeys, keywordKey as selectionKeywordKey, selectionRowKey, upsertSelectionRows } from '@/lib/monthly-keyword-selection-rows'
-import { monthLabel, notifyTaggedUsers, resolveMentionableUserIds } from '@/lib/monthly-keyword-mentions'
+import { monthLabel, notifyTaggedUsers, resolveMentionableUserIds, withoutAdmins } from '@/lib/monthly-keyword-mentions'
 import { nklIdString, parseAppliedNklIds } from '@/lib/monthly-keyword-nkl-targets'
 import { appendNklKeywords } from '@/lib/nkl-append-keywords'
 
@@ -269,13 +269,16 @@ export async function POST(req: NextRequest) {
     payload.logger?.warn?.(`[monthly-keyword-apply] activity log failed: ${err}`)
   }
 
-  // Notify each flagger that the negative they flagged was added to a list.
-  if (addedNotifications.length > 0) {
+  // Notify each flagger (staff only; admins are not sent these automatic
+  // alerts) that the negative they flagged was added to a list.
+  const staffFlaggers = new Set(await withoutAdmins(payload, [...new Set(addedNotifications.map((note) => note.recipient))]))
+  const staffNotifications = addedNotifications.filter((note) => staffFlaggers.has(note.recipient))
+  if (staffNotifications.length > 0) {
       const client = await payload
         .findByID({ collection: 'clients', id: clientId, depth: 0, overrideAccess: true })
         .catch(() => null) as { name?: string } | null
       const clientName = client?.name || `Client ${clientId}`
-      for (const note of addedNotifications) {
+      for (const note of staffNotifications) {
         const body = `${monthLabel(note.yearMonth)} · "${note.term}" → ${note.detail}${comment ? `: ${comment.slice(0, 140)}` : ''}`
         try {
           await payload.create({

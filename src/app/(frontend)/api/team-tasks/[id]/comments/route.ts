@@ -4,6 +4,7 @@ import config from "@/payload.config";
 import { userHasFeature } from "@/lib/access";
 import { isAssignableTeamTaskUser } from "@/lib/team-task-users";
 import { relationshipKey } from "@/lib/relationship-id";
+import { isBareDoneComment } from "@/lib/team-task-mention-filter";
 
 type UserOption = { id: string | number; name?: string | null; email?: string | null };
 
@@ -101,7 +102,8 @@ export async function POST(
     ]);
 
     const users = (usersResult.docs as UserOption[]).filter(isAssignableTeamTaskUser);
-    const mentions = mentionedUserIds(commentBody, users, body.mentions);
+    // A bare "done with this" is saved on the task but notifies nobody.
+    const mentions = isBareDoneComment(commentBody) ? [] : mentionedUserIds(commentBody, users, body.mentions);
     const comment = await payload.create({
       collection: "team-task-comments" as any,
       data: {

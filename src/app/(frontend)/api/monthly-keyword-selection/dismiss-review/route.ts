@@ -3,7 +3,7 @@ import { getPayload } from 'payload'
 import config from '@/payload.config'
 import { userHasFeature } from '@/lib/access'
 import { findSelectionRow, patchSelectionRow } from '@/lib/monthly-keyword-selection-rows'
-import { notifyTaggedUsers, resolveMentionableUserIds } from '@/lib/monthly-keyword-mentions'
+import { notifyTaggedUsers, resolveMentionableUserIds, withoutAdmins } from '@/lib/monthly-keyword-mentions'
 
 /**
  * Dismiss a "needs review" term as feedback. Rather than silently dropping it
@@ -46,7 +46,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   if (!patched) return NextResponse.json({ error: 'Matching term not found' }, { status: 404 })
 
-  const recipientIds = Array.from(new Set([originalHandlerId, ...taggedUserIds].filter(Boolean) as string[]))
+  // The original flagger hears about it only if they are staff; anyone tagged
+  // directly (admins included) always does.
+  const flagger = originalHandlerId ? await withoutAdmins(payload, [originalHandlerId]) : []
+  const recipientIds = Array.from(new Set([...flagger, ...taggedUserIds]))
   const notified = await notifyTaggedUsers(payload, {
     recipientIds,
     actorId: String(user.id),

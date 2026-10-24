@@ -4,6 +4,7 @@ const { payload } = vi.hoisted(() => ({
   payload: {
     find: vi.fn(),
     create: vi.fn(),
+    update: vi.fn(),
     count: vi.fn(),
     db: {
       beginTransaction: vi.fn(),
@@ -25,16 +26,20 @@ describe("POST /api/google-ads-estimate-usage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     process.env.AUDIT_API_KEY = "internal-key";
-    payload.find.mockResolvedValue({ docs: [{ id: 7 }] });
+    // First find: the admin recipient. Second find: this week's existing notification (none).
+    payload.find.mockImplementation(async (args: { collection: string }) =>
+      args.collection === "users" ? { docs: [{ id: 7 }] } : { docs: [] });
     payload.create.mockResolvedValue({ id: 1 });
+    payload.update.mockResolvedValue({ id: 1 });
     payload.count.mockResolvedValue({ totalDocs: 3 });
     payload.db.beginTransaction.mockResolvedValue("tx-1");
     payload.db.commitTransaction.mockResolvedValue(undefined);
     payload.db.rollbackTransaction.mockResolvedValue(undefined);
   });
 
-  it("records matching notification and activity entries at the supplied event time", async () => {
+  it("records the activity entry and starts this week's notification at the supplied event time", async () => {
     const usedAt = "2026-09-08T01:02:03.000Z";
+    payload.count.mockResolvedValue({ totalDocs: 1 });
     const request = new Request("http://localhost/api/google-ads-estimate-usage", {
       method: "POST",
       headers: { "content-type": "application/json", "x-api-key": "internal-key" },
@@ -55,14 +60,61 @@ describe("POST /api/google-ads-estimate-usage", () => {
       collection: "notifications",
       data: expect.objectContaining({
         createdAt: usedAt,
-        url: "/admin/collections/activity-log/1",
+        title: "Google Ads keyword cost finder used this week (1)",
+        body: "Week of 7th Sep. Latest: plumber in Perth, success/live, Tue 8th Sep, 9:02am",
+        url: "/admin/collections/activity-log?where[and][0][type][equals]=google_ads_keyword_cost_finder_used&where[and][1][createdAt][greater_than_equal]=2026-09-06T16%3A00%3A00.000Z",
       }),
     }));
     expect(payload.db.commitTransaction).toHaveBeenCalledWith("tx-1");
   });
 
+  it("bumps the existing weekly notification instead of adding another one", async () => {
+    payload.count.mockResolvedValue({ totalDocs: 5 });
+    payload.find.mockImplementation(async (args: { collection: string }) =>
+      args.collection === "users"
+        ? { docs: [{ id: 7 }] }
+        : { docs: [{ id: 44, createdAt: "2026-09-08T01:00:00.000Z", body: "old" }] });
+    const usedAt = "2026-09-10T03:30:00.000Z";
+    const request = new Request("http://localhost/api/google-ads-estimate-usage", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-api-key": "internal-key" },
+      body: JSON.stringify({ keyword: "electrician", targetArea: "Sydney", status: "success", source: "cache", usedAt }),
+    });
+
+    await POST(request as never);
+
+    expect(payload.create).toHaveBeenCalledOnce();
+    expect(payload.create).toHaveBeenCalledWith(expect.objectContaining({ collection: "activity-log" }));
+    expect(payload.update).toHaveBeenCalledWith(expect.objectContaining({
+      collection: "notifications",
+      id: 44,
+      data: expect.objectContaining({
+        title: "Google Ads keyword cost finder used this week (5)",
+        body: "Week of 7th Sep. Latest: electrician in Sydney, success/cache, Thu 10th Sep, 11:30am",
+        readAt: null,
+        createdAt: usedAt,
+      }),
+    }));
+  });
+
+  it("starts a new notification when the week rolls over (Monday, Perth time)", async () => {
+    payload.count.mockResolvedValue({ totalDocs: 1 });
+    // Sunday 11:59pm UTC is Monday 7:59am in Perth: a new week.
+    const request = new Request("http://localhost/api/google-ads-estimate-usage", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-api-key": "internal-key" },
+      body: JSON.stringify({ keyword: "plumber", usedAt: "2026-09-13T23:59:00.000Z" }),
+    });
+
+    await POST(request as never);
+
+    const notification = payload.create.mock.calls.find((c: any[]) => c[0].collection === "notifications")?.[0];
+    expect(notification.data.url).toContain(encodeURIComponent("2026-09-13T16:00:00.000Z"));
+    expect(notification.data.body).toMatch(/^Week of 14th Sep\./);
+  });
+
   it("still records activity when no notification recipient exists", async () => {
-    payload.find.mockResolvedValue({ docs: [] });
+    payload.find.mockImplementation(async () => ({ docs: [] }));
     const request = new Request("http://localhost/api/google-ads-estimate-usage", {
       method: "POST",
       headers: { "content-type": "application/json", "x-api-key": "internal-key" },

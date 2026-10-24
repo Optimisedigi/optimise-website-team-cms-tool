@@ -2,7 +2,6 @@ import { sql } from "@payloadcms/db-sqlite";
 import type { Payload } from "payload";
 import { isAutomatedMessage } from "./automated-senders";
 import { extractEmailAddresses } from "./client-matching";
-import { cmsMailThreadPath } from "./drafts";
 import type { ThreadReplyHeader } from "./gmail-mail";
 import { FOLLOW_UP_DAY_OPTIONS } from "./schedule-times";
 
@@ -12,13 +11,13 @@ export { DEFAULT_FOLLOW_UP_DAYS, FOLLOW_UP_DAY_OPTIONS } from "./schedule-times"
  * Follow-up reminders for the Mail view ("Remind me if no reply"). A row in
  * `mail_follow_ups` tracks one sent email; the hourly cron (checkFollowUps)
  * marks it `replied` once someone outside the user's own addresses answers in
- * the thread, and moves it `waiting -> due` once `remind_at` passes, raising
- * exactly one notification. Like scheduled.ts, every state change is one
- * conditional UPDATE, so two cron runs can never notify twice. Dates are ISO
- * strings, which sort the same as the instants they name.
+ * the thread, and moves it `waiting -> due` once `remind_at` passes. Due
+ * reminders show in Mail's Awaiting panel; they raise no bell notification.
+ * Like scheduled.ts, every state change is one conditional UPDATE, so two cron
+ * runs can never double-process a row. Dates are ISO strings, which sort the
+ * same as the instants they name.
  */
 
-export const FOLLOW_UP_DUE_KIND = "mail-follow-up-due";
 export const FOLLOW_UP_MIN_LEAD_MS = 60 * 60 * 1000;
 export const FOLLOW_UP_MAX_LEAD_MS = 60 * 24 * 60 * 60 * 1000;
 /** Threads checked against Gmail per cron run (oldest-checked first). */
@@ -212,25 +211,19 @@ export interface FollowUpCheckResult {
   replied: number;
   gone: number;
   due: number;
-  notified: number;
   skipped: number;
   errors: number;
 }
 
-function formatSentDate(iso: string): string {
-  const date = new Date(iso);
-  return Number.isNaN(date.getTime()) ? "" : date.toISOString().slice(0, 10);
-}
-
 /**
  * Cron entry: check the open reminders least recently checked. Replied
- * threads close; a waiting reminder past its time moves to due with one
- * notification (the conditional UPDATE guarantees one per due cycle). When the
+ * threads close; a waiting reminder past its time moves to due (the
+ * conditional UPDATE guarantees one transition per due cycle). When the
  * owner's Gmail is disconnected the reminder is left as it is.
  */
 export async function checkFollowUps(payload: Payload, deps: FollowUpCheckDeps): Promise<FollowUpCheckResult> {
   const db = followUpDb(payload);
-  const tally: FollowUpCheckResult = { checked: 0, replied: 0, gone: 0, due: 0, notified: 0, skipped: 0, errors: 0 };
+  const tally: FollowUpCheckResult = { checked: 0, replied: 0, gone: 0, due: 0, skipped: 0, errors: 0 };
   const rows = rowsOf(
     await db.run(
       sql`select id, owner_id, account, client_id, gmail_thread_id, "to", subject, sent_at, remind_at, status
@@ -290,23 +283,7 @@ export async function checkFollowUps(payload: Payload, deps: FollowUpCheckDeps):
               where id = ${id} and status = 'waiting' and remind_at <= ${at}`,
         ),
       );
-      if (!claimed) continue;
-      tally.due++;
-      const subject = (text(row.subject) || "(no subject)").slice(0, 150);
-      const sent = formatSentDate(text(row.sent_at));
-      await payload.create({
-        collection: "notifications",
-        overrideAccess: true,
-        data: {
-          recipient: Number(row.owner_id),
-          kind: FOLLOW_UP_DUE_KIND,
-          title: `No reply yet: ${subject}`.slice(0, 200),
-          body: `To ${text(row.to).slice(0, 120) || "recipient"}${sent ? ` · sent ${sent}` : ""}`,
-          url: cmsMailThreadPath(threadId, text(row.account) || null),
-          ...(row.client_id === null || row.client_id === undefined ? {} : { relatedClient: Number(row.client_id) }),
-        },
-      } as never);
-      tally.notified++;
+      if (claimed) tally.due++;
     } catch (err) {
       tally.errors++;
       console.warn("[mail] follow-up check failed:", (err as Error).message?.slice(0, 200));

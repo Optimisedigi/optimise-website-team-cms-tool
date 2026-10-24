@@ -1,9 +1,5 @@
 import type { CollectionConfig } from "payload";
 import { hasValidApiKey } from "./api-key-access";
-import {
-  clearApprovalNotifications,
-  fanOutApprovalNotifications,
-} from "../lib/agent-approval-notifications";
 
 /**
  * Agent Approval Queue.
@@ -14,6 +10,8 @@ import {
  * follow-up tool reads the approval state to act on it.
  *
  * Collection is shared across all agents in the fleet (per the build plan).
+ * Pending approvals are reviewed on /admin/agent-approvals; they do not raise
+ * bell notifications.
  */
 export const AgentApprovalQueue: CollectionConfig = {
   slug: "agent-approval-queue" as any,
@@ -40,38 +38,6 @@ export const AgentApprovalQueue: CollectionConfig = {
     delete: ({ req }) => req.user?.role === "admin",
   },
   defaultSort: "-createdAt",
-  hooks: {
-    afterChange: [
-      async ({ doc, operation, req }) => {
-        // queueForApproval sends notifications after its approval row is readable.
-        // Doing it here would write notification rows inside the approval create.
-        if (doc.status === "pending" && !req.context?.deferApprovalNotifications) {
-          await fanOutApprovalNotifications(req.payload, {
-            approvalId: Number(doc.id),
-            agentRunId: String(doc.agentRunId),
-            agentName: String(doc.agentName),
-            proposalType: String(doc.proposalType),
-            title: String(doc.title),
-            clientId:
-              doc.client !== undefined && doc.client !== null
-                ? typeof doc.client === "object"
-                  ? doc.client.id
-                  : doc.client
-                : null,
-          });
-        }
-
-        // setApprovalStatus clears notifications itself after the update commits.
-        if (
-          operation === "update" &&
-          !req.context?.deferApprovalNotifications &&
-          ["approved", "rejected", "applied", "failed"].includes(String(doc.status))
-        ) {
-          await clearApprovalNotifications(req.payload, Number(doc.id));
-        }
-      },
-    ],
-  },
   fields: [
     {
       name: "title",

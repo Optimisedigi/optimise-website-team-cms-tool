@@ -8,7 +8,6 @@ import {
   countDueFollowUps,
   createFollowUp,
   dismissFollowUp,
-  FOLLOW_UP_DUE_KIND,
   followUpDb,
   isReplied,
   listFollowUps,
@@ -146,34 +145,22 @@ describe('checkFollowUps', () => {
   it('resolves a replied thread without notifying', async () => {
     const id = await track()
     const result = await checkFollowUps(payload, deps([header({ from: OWN, internalDate: SENT.getTime() }), header()]))
-    expect(result).toMatchObject({ checked: 1, replied: 1, notified: 0 })
+    expect(result).toMatchObject({ checked: 1, replied: 1, due: 0 })
     expect((await statusOf(id)).status).toBe('replied')
     expect(create).not.toHaveBeenCalled()
   })
 
-  it('moves a due reminder to due once with exactly one notification, and not again on the next run', async () => {
+  it('moves a due reminder to due once, without a bell notification, and not again on the next run', async () => {
     const id = await track()
     const thread = [header({ from: OWN, internalDate: SENT.getTime() })]
     const first = await checkFollowUps(payload, deps(thread))
-    expect(first).toMatchObject({ due: 1, notified: 1 })
-    expect(create).toHaveBeenCalledTimes(1)
-    expect(create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        collection: 'notifications',
-        data: expect.objectContaining({
-          recipient: 1,
-          kind: FOLLOW_UP_DUE_KIND,
-          title: 'No reply yet: Proposal',
-          url: '/admin/mail?thread=t1',
-          relatedClient: 3,
-        }),
-      }),
-    )
+    expect(first).toMatchObject({ due: 1 })
+    expect(create).not.toHaveBeenCalled()
     expect(await statusOf(id)).toMatchObject({ status: 'due', notified_at: NOW.toISOString() })
 
     const second = await checkFollowUps(payload, deps(thread, hours(1)))
-    expect(second).toMatchObject({ due: 0, notified: 0 })
-    expect(create).toHaveBeenCalledTimes(1)
+    expect(second).toMatchObject({ due: 0 })
+    expect(create).not.toHaveBeenCalled()
   })
 
   it('leaves reminders that are not due yet waiting', async () => {
@@ -185,11 +172,11 @@ describe('checkFollowUps', () => {
 
   it('closes reminders whose thread is gone from Gmail', async () => {
     const id = await track()
-    expect(await checkFollowUps(payload, deps([]))).toMatchObject({ gone: 1, notified: 0 })
+    expect(await checkFollowUps(payload, deps([]))).toMatchObject({ gone: 1, due: 0 })
     expect((await statusOf(id)).status).toBe('dismissed')
   })
 
-  it('checks a reminder with the Gmail account its email was sent from, and links the alert to it', async () => {
+  it('checks a reminder with the Gmail account its email was sent from', async () => {
     const db = followUpDb(payload)
     const id = await createFollowUp(db, {
       ownerId: 1,
@@ -209,12 +196,10 @@ describe('checkFollowUps', () => {
 
     const getToken = vi.fn(async () => ({ ok: true as const, accessToken: 'sales-tok', email: 'sales@od.com', userEmail: OWN }))
     const getThreadHeaders = vi.fn(async () => [header({ from: 'Sales <sales@od.com>' })])
-    expect(await checkFollowUps(payload, { now: () => NOW, getToken, getThreadHeaders })).toMatchObject({ notified: 1 })
+    expect(await checkFollowUps(payload, { now: () => NOW, getToken, getThreadHeaders })).toMatchObject({ due: 1 })
     expect(getToken).toHaveBeenCalledWith(1, 'sales@od.com')
     expect(getThreadHeaders).toHaveBeenCalledWith('sales-tok', 't9')
-    expect(create).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ url: '/admin/mail?thread=t9&account=sales%40od.com' }) }),
-    )
+    expect(create).not.toHaveBeenCalled()
   })
 
   it('skips owners without Gmail and keeps going after a Gmail error', async () => {
@@ -227,7 +212,7 @@ describe('checkFollowUps', () => {
         throw new Error('Gmail 500')
       },
     })
-    expect(result).toMatchObject({ skipped: 1, errors: 1, notified: 0 })
+    expect(result).toMatchObject({ skipped: 1, errors: 1, due: 0 })
     expect((await statusOf(noGmail)).status).toBe('waiting')
     expect((await statusOf(failing)).status).toBe('waiting')
   })

@@ -400,6 +400,7 @@ export async function syncMailbox(args: {
                 gmailMessageId: emailInput.gmailMessageId,
                 date: emailInput.date,
                 ...(args.account ? { account: args.account } : {}),
+                ...(message.hasCalendarInvite ? { calendarInvite: true } : {}),
               })
             }
             return result

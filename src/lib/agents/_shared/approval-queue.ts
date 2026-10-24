@@ -10,10 +10,6 @@
 
 import { getPayload } from "payload";
 import config from "@/payload.config";
-import {
-  fanOutApprovalNotifications,
-  clearApprovalNotifications,
-} from "@/lib/agent-approval-notifications";
 
 const COLLECTION = "agent-approval-queue" as any;
 
@@ -34,8 +30,8 @@ export interface QueueForApprovalInput {
   };
   /**
    * CMS user id of the human who triggered the agent run that produced this
-   * proposal. Stamped on the row (informational — the bell fan-out separately
-   * looks the caller up via agentRunId) and used by future per-caller filters.
+   * proposal. Stamped on the row (informational) and used by future
+   * per-caller filters.
    * Optional: scheduled / background runs have no triggering user.
    */
   triggeredByUserId?: number;
@@ -64,10 +60,9 @@ export async function queueForApproval(input: QueueForApprovalInput): Promise<nu
   const startedAt = Date.now();
   const created = (await payload.create({
     collection: COLLECTION,
-    // A queue row must be committed before the notification fan-out starts
-    // separate SQLite writes. The collection hook defers fan-out for this path.
+    // Committed outside a transaction so the read-back below proves the row
+    // persisted (Turso could silently roll back transactional writes).
     disableTransaction: true,
-    context: { deferApprovalNotifications: true },
     data: {
       title: input.title,
       agentName: input.agentName,
@@ -102,26 +97,6 @@ export async function queueForApproval(input: QueueForApprovalInput): Promise<nu
     elapsedMs: Date.now() - startedAt,
   });
 
-  // Fan out a bell notification to every admin so any team-member can review.
-  // Best-effort — a fan-out failure must not block proposal creation; the
-  // helper logs internally and never throws.
-  try {
-    await fanOutApprovalNotifications(payload, {
-      approvalId: created.id,
-      agentRunId: input.agentRunId,
-      agentName: input.agentName,
-      proposalType: input.proposalType,
-      title: input.title,
-      clientId: input.clientId ?? null,
-    });
-  } catch (err) {
-    payload.logger?.error?.({
-      msg: "queueForApproval: fan-out failed",
-      approvalId: created.id,
-      error: err instanceof Error ? err.message : String(err),
-    });
-  }
-
   return created.id;
 }
 
@@ -130,11 +105,9 @@ type ResolvedApprovalStatus = "approved" | "rejected" | "applied" | "failed";
 /**
  * Persist a status transition and prove it stuck before returning.
  *
- * The update runs without a transaction and defers the collection hook's
- * notification cleanup: that cleanup writes notification rows on separate
- * SQLite connections, which made the transactional update roll back silently
- * on Turso (the reject route returned 200 but the row stayed "pending").
- * Notifications are cleared here, after the row is committed.
+ * The update runs without a transaction: transactional updates here rolled
+ * back silently on Turso (the reject route returned 200 but the row stayed
+ * "pending"), so the row is read back to confirm the change.
  */
 async function setApprovalStatus(
   id: number,
@@ -148,7 +121,6 @@ async function setApprovalStatus(
     id,
     data: { ...data, status },
     disableTransaction: true,
-    context: { deferApprovalNotifications: true },
     overrideAccess: true,
   });
   const persisted = (await payload.findByID({
@@ -162,8 +134,6 @@ async function setApprovalStatus(
       `Approval #${id} status change to "${status}" was not persisted (still "${String(persisted.status)}")`,
     );
   }
-  // Clear the bell for everyone now that the queue item is actioned.
-  await clearApprovalNotifications(payload, id);
 }
 
 export async function markApproved(id: number, reviewedById: number): Promise<void> {

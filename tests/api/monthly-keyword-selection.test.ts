@@ -397,6 +397,81 @@ describe('monthly keyword selection API routes', () => {
     }))
   })
 
+  it('complete tells other admins the month is ready and sends needs-review alerts to staff only', async () => {
+    mockPayload.auth.mockResolvedValue({ user: { id: 9, role: 'admin', name: 'Peter' } })
+    mockPayload.find.mockImplementation(async ({ collection }: { collection: string }) => {
+      if (collection === 'monthly-keyword-terms-cache') return { docs: [{ id: 5 }] }
+      if (collection === 'monthly-keyword-selections') {
+        return { docs: [{ selections: [{ yearMonth: '2026-05', decision: 'needs_review' }, { yearMonth: '2026-05', decision: 'approved' }] }] }
+      }
+      if (collection === 'users') {
+        return {
+          docs: [
+            { id: 9, role: 'admin' },
+            { id: 10, role: 'admin' },
+            { id: 20, role: 'staff', featureAccess: ['negative-keyword-lists'] },
+            { id: 21, role: 'staff', featureAccess: [] },
+          ],
+        }
+      }
+      return { docs: [] }
+    })
+    mockPayload.findByID.mockResolvedValue({ name: 'Acme' })
+    mockPayload.update.mockResolvedValue({ id: 5, reviewCompletedAt: '2026-06-04T00:00:00.000Z' })
+    mockPayload.create.mockResolvedValue({ id: 1 })
+
+    const res = await completePOST(request('/api/monthly-keyword-selection/complete', { clientId: 7, yearMonth: '2026-05', complete: true }))
+
+    expect(res.status).toBe(200)
+    const notes = mockPayload.create.mock.calls.filter((c: any[]) => c[0].collection === 'notifications').map((c: any[]) => c[0].data)
+    expect(notes.map((n: any) => n.recipient).sort()).toEqual([10, 20])
+    expect(notes.find((n: any) => n.recipient === 10)).toMatchObject({
+      title: 'May 2026 negatives ready for your review — Acme',
+      body: 'May 2026 marked complete by Peter. 1 term flagged "needs review".',
+    })
+    expect(notes.find((n: any) => n.recipient === 20)).toMatchObject({ title: '1 monthly negative need review — Acme' })
+  })
+
+  it('complete still tells admins when nothing needs review', async () => {
+    mockPayload.auth.mockResolvedValue({ user: { id: 20, role: 'staff', name: 'Sam', featureAccess: ['negative-keyword-lists'] } })
+    mockPayload.find.mockImplementation(async ({ collection }: { collection: string }) => {
+      if (collection === 'monthly-keyword-terms-cache') return { docs: [{ id: 5 }] }
+      if (collection === 'users') return { docs: [{ id: 9, role: 'admin' }, { id: 20, role: 'staff', featureAccess: ['negative-keyword-lists'] }] }
+      return { docs: [] }
+    })
+    mockPayload.findByID.mockResolvedValue({ name: 'Acme' })
+    mockPayload.update.mockResolvedValue({ id: 5 })
+    mockPayload.create.mockResolvedValue({ id: 1 })
+
+    await completePOST(request('/api/monthly-keyword-selection/complete', { clientId: 7, yearMonth: '2026-05', complete: true }))
+
+    const notes = mockPayload.create.mock.calls.filter((c: any[]) => c[0].collection === 'notifications').map((c: any[]) => c[0].data)
+    expect(notes).toEqual([expect.objectContaining({ recipient: 9, body: 'May 2026 marked complete by Sam. No terms flagged "needs review".' })])
+  })
+
+  it('apply does not send the automatic "added" alert to an admin flagger', async () => {
+    mockPayload.auth.mockResolvedValue({ user: { id: 9, role: 'admin', name: 'Adder Amy' } })
+    mockPayload.findByID.mockImplementation(({ collection }: { collection: string }) => {
+      if (collection === 'negative-keyword-lists') return Promise.resolve({ id: 3, name: 'List A', client: 7, keywords: [] })
+      if (collection === 'clients') return Promise.resolve({ name: 'Acme' })
+      if (collection === 'users') return Promise.resolve({ id: 99, role: 'admin' })
+      return Promise.resolve(null)
+    })
+    mockPayload.find.mockResolvedValue({
+      docs: [{ id: 77, rowKey: '7|2026-05|cheap widgets|0', yearMonth: '2026-05', searchTerm: 'cheap widgets', rowIndex: 0, negativeKeyword: 'cheap', matchType: 'exact', decision: 'needs_review', decidedByUserId: '99', decidedBy: 'Flagger Fred' }],
+    })
+    mockPayload.update.mockResolvedValue({ id: 22 })
+    mockPayload.create.mockResolvedValue({ id: 1 })
+
+    const res = await applyPOST(request('/api/monthly-keyword-selection/apply', {
+      clientId: 7,
+      selections: [{ yearMonth: '2026-05', searchTerm: 'cheap widgets', rowIndex: 0, negativeKeyword: 'cheap', matchType: 'exact', appliedToNKL: 3 }],
+    }))
+
+    expect(res.status).toBe(200)
+    expect(mockPayload.create.mock.calls.map((c: any[]) => c[0].collection)).not.toContain('notifications')
+  })
+
   it('revise update moves a negative between NKLs and repoints the selection', async () => {
     mockPayload.find.mockResolvedValue({
       docs: [{
@@ -453,7 +528,7 @@ describe('monthly keyword selection API routes', () => {
     }))
   })
 
-  it('revise update stamps an "updated" outcome in place and notifies the submitter', async () => {
+  it('revise update stamps an "updated" outcome in place without a "removed" notification', async () => {
     mockPayload.auth.mockResolvedValue({ user: { id: 9, role: 'admin', name: 'Editor Ed' } })
     mockPayload.find.mockResolvedValue({
       docs: [{
@@ -478,15 +553,12 @@ describe('monthly keyword selection API routes', () => {
     const json = await res.json()
 
     expect(res.status).toBe(200)
-    expect(json).toMatchObject({ success: true, notified: true })
+    expect(json).toMatchObject({ success: true, notified: false })
     const rowUpdate = mockPayload.update.mock.calls.filter((c: any[]) => c[0].collection === 'monthly-keyword-selection-rows').at(-1)
     expect(rowUpdate[0].data).toMatchObject({ outcomeType: 'updated', outcomeComment: 'Tighter scope.', outcomeBy: 'Editor Ed' })
     expect(rowUpdate[0].data.outcomeDetail).toContain('cheap → cheap widget')
     expect(rowUpdate[0].data.outcomeDetail).toContain('exact → phrase')
-    expect(mockPayload.create).toHaveBeenCalledWith(expect.objectContaining({
-      collection: 'notifications',
-      data: expect.objectContaining({ recipient: '99', kind: 'negative-keywords-removed' }),
-    }))
+    expect(mockPayload.create.mock.calls.map((c: any[]) => c[0].collection)).not.toContain('notifications')
   })
 
   it('revise move stamps a "moved" outcome with the list names', async () => {
@@ -515,7 +587,8 @@ describe('monthly keyword selection API routes', () => {
     const json = await res.json()
 
     expect(res.status).toBe(200)
-    expect(json).toMatchObject({ success: true, moved: true, notified: true })
+    // The submitter no longer gets a "removed/moved" notification; only direct tags notify.
+    expect(json).toMatchObject({ success: true, moved: true, notified: false })
     const rowUpdate = mockPayload.update.mock.calls.filter((c: any[]) => c[0].collection === 'monthly-keyword-selection-rows').at(-1)
     expect(rowUpdate[0].data).toMatchObject({ outcomeType: 'moved', outcomeDetail: 'List A → List B', outcomeBy: 'Mover Mo' })
   })

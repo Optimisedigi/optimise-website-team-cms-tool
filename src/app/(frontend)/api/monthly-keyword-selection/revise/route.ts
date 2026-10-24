@@ -3,9 +3,7 @@ import { getPayload } from 'payload'
 import config from '@/payload.config'
 import { userHasFeature } from '@/lib/access'
 import { findSelectionRow, patchSelectionRow } from '@/lib/monthly-keyword-selection-rows'
-import { monthLabel, notifyTaggedUsers, resolveMentionableUserIds } from '@/lib/monthly-keyword-mentions'
-
-const NOTIFICATIONS = 'notifications' as never
+import { notifyTaggedUsers, resolveMentionableUserIds } from '@/lib/monthly-keyword-mentions'
 
 type MatchType = 'exact' | 'broad' | 'phrase'
 type NklKeyword = { keyword?: string; matchType?: MatchType; flaggedForRemoval?: boolean | null; negatedAt?: string | null; id?: string | null }
@@ -25,54 +23,6 @@ function asNklId(value: string | null): number | string | null {
   return /^\d+$/.test(value) ? Number(value) : value
 }
 
-async function notifySubmitter(
-  payload: Awaited<ReturnType<typeof getPayload>>,
-  args: {
-    recipient: string
-    title: string
-    yearMonth: string
-    searchTerm: string
-    detail: string
-    comment: string
-    clientId: number
-  },
-): Promise<boolean> {
-  const client = await payload
-    .findByID({ collection: 'clients', id: args.clientId, depth: 0, overrideAccess: true })
-    .catch(() => null) as { name?: string } | null
-  const clientName = client?.name || `Client ${args.clientId}`
-  const body = `${monthLabel(args.yearMonth)} · "${args.searchTerm}": ${args.detail}${args.comment ? ` · ${args.comment.slice(0, 140)}` : ''}`
-  try {
-    await payload.create({
-      collection: NOTIFICATIONS,
-      data: {
-        recipient: args.recipient,
-        kind: 'negative-keywords-removed',
-        title: `${args.title} — ${clientName}`,
-        body,
-        url: `/admin/monthly-keyword-selection?clientId=${args.clientId}`,
-        relatedClient: args.clientId,
-      } as never,
-      overrideAccess: true,
-    })
-    return true
-  } catch (err) {
-    payload.logger?.warn?.(`[monthly-keyword-revise] notify failed for ${args.recipient}: ${err}`)
-    return false
-  }
-}
-
-/**
- * Safety-net revisions for negatives already applied to an NKL, driven from the
- * "Submitted negatives" tab.
- *
- *  - action 'remove': delete just this keyword+matchType from its NKL and mark
- *    the selection skipped so the term stays hidden in future months.
- *  - action 'update': replace the keyword text and/or match type in place inside
- *    the same NKL, keeping the selection applied. When `newNklId` differs from
- *    the current list the negative is moved — removed from the old NKL and added
- *    to the new one — and the selection's appliedToNKL is repointed.
- */
 export async function POST(req: NextRequest): Promise<NextResponse> {
   const payload = await getPayload({ config })
   const { user } = await payload.auth({ headers: req.headers })
@@ -130,7 +80,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const now = new Date().toISOString()
   const actorName = (user as { name?: string; email?: string }).name || (user as { email?: string }).email || 'A reviewer'
   const actorUserId = String(user.id)
-  const submitterUserId = target.appliedByUserId ? String(target.appliedByUserId) : ''
 
   if (action === 'remove') {
     const nextKeywords = currentKeywords.filter((kw) => !matchesOld(kw))
@@ -141,7 +90,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       overrideAccess: true,
     })
     const removerName = (user as { name?: string; email?: string }).name || (user as { email?: string }).email || 'A reviewer'
-    const appliedByUserId = target.appliedByUserId ? String(target.appliedByUserId) : ''
     // Keep the original submitter (appliedBy/appliedByUserId) intact so the
     // "Removed negatives explained" tab can attribute who first submitted it.
     await patchSelectionRow(payload, clientId, yearMonth, searchTerm, rowIndex, {
@@ -155,34 +103,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       removedAt: now,
     })
 
-    // Notify the original submitter so new team members understand why a
-    // negative they applied was removed. Only when a reason was given and the
-    // submitter is someone other than the remover.
-    let notified = false
-    if (comment && appliedByUserId && appliedByUserId !== String(user.id)) {
-      const client = await payload
-        .findByID({ collection: 'clients', id: clientId, depth: 0, overrideAccess: true })
-        .catch(() => null) as { name?: string } | null
-      const clientName = client?.name || `Client ${clientId}`
-      try {
-        await payload.create({
-          collection: NOTIFICATIONS,
-          data: {
-            recipient: appliedByUserId,
-            kind: 'negative-keywords-removed',
-            title: `${removerName} removed a negative you submitted — ${clientName}`,
-            body: `${monthLabel(yearMonth)} · "${searchTerm}": ${comment.slice(0, 140)}`,
-            url: `/admin/monthly-keyword-selection?clientId=${clientId}`,
-            relatedClient: clientId,
-          } as never,
-          overrideAccess: true,
-        })
-        notified = true
-      } catch (err) {
-        payload.logger?.warn?.(`[monthly-keyword-revise] notify failed for ${appliedByUserId}: ${err}`)
-      }
-    }
-
     const taggedNotified = comment
       ? await notifyTaggedUsers(payload, {
           recipientIds: taggedUserIds,
@@ -195,7 +115,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         })
       : 0
 
-    return NextResponse.json({ success: true, action, removed: currentKeywords.length - nextKeywords.length, notified: notified || taggedNotified > 0 })
+    return NextResponse.json({ success: true, action, removed: currentKeywords.length - nextKeywords.length, notified: taggedNotified > 0 })
   }
 
   // action === 'update' with a different target NKL — move the negative between
@@ -264,19 +184,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       outcomeAt: now,
     })
 
-    let notified = false
-    if (submitterUserId && submitterUserId !== actorUserId) {
-      notified = await notifySubmitter(payload, {
-        recipient: submitterUserId,
-        title: `${actorName} moved a negative you submitted`,
-        yearMonth,
-        searchTerm,
-        detail: moveDetail,
-        comment,
-        clientId,
-      })
-    }
-
     const taggedNotified = comment
       ? await notifyTaggedUsers(payload, {
           recipientIds: taggedUserIds,
@@ -289,7 +196,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         })
       : 0
 
-    return NextResponse.json({ success: true, action, moved: true, deduped: alreadyPresent, notified: notified || taggedNotified > 0 })
+    return NextResponse.json({ success: true, action, moved: true, deduped: alreadyPresent, notified: taggedNotified > 0 })
   }
 
   // action === 'update' — replace keyword/matchType in place inside the NKL.
@@ -340,19 +247,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     outcomeAt: now,
   })
 
-  let notified = false
-  if (submitterUserId && submitterUserId !== actorUserId) {
-    notified = await notifySubmitter(payload, {
-      recipient: submitterUserId,
-      title: `${actorName} updated a negative you submitted`,
-      yearMonth,
-      searchTerm,
-      detail: updateDetail,
-      comment,
-      clientId,
-    })
-  }
-
   const taggedNotified = comment
     ? await notifyTaggedUsers(payload, {
         recipientIds: taggedUserIds,
@@ -365,7 +259,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       })
     : 0
 
-  return NextResponse.json({ success: true, action, deduped: duplicate, notified: notified || taggedNotified > 0 })
+  return NextResponse.json({ success: true, action, deduped: duplicate, notified: taggedNotified > 0 })
   } catch (err) {
     // Surface the real failure instead of a bare 500 (which the client shows as
     // a generic "Revision failed"). Logged for server-side diagnosis.

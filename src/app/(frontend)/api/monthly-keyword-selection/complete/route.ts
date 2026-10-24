@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import config from '@/payload.config'
 import { userHasFeature } from '@/lib/access'
-import { notifyMonthlyNegativesNeedReview } from '@/lib/monthly-keyword-needs-review-notify'
+import { notifyMonthlyNegativesComplete } from '@/lib/monthly-keyword-needs-review-notify'
 
 export async function POST(req: NextRequest) {
   const payload = await getPayload({ config })
@@ -56,8 +56,8 @@ export async function POST(req: NextRequest) {
   )
   const updated = updatedRows[0]
 
-  // When a month is marked complete, surface any "needs review" terms for that
-  // month via the bell + dashboard activity feed.
+  // When a month is marked complete, tell admins it is ready for review and
+  // surface any "needs review" terms to staff via the bell + activity feed.
   if (complete) {
     const selectionResult = await payload.find({
       collection: 'monthly-keyword-selections',
@@ -71,17 +71,15 @@ export async function POST(req: NextRequest) {
       (s) => s?.yearMonth === yearMonth && s?.decision === 'needs_review',
     ).length
 
-    if (needsReviewCount > 0) {
-      const client = await payload.findByID({ collection: 'clients', id: clientId, depth: 0, overrideAccess: true }).catch(() => null) as { name?: string; slug?: string } | null
-      await notifyMonthlyNegativesNeedReview(payload, {
-        clientId,
-        clientName: client?.name || `Client ${clientId}`,
-        clientSlug: client?.slug || '',
-        yearMonth,
-        needsReviewCount,
-        triggeredByUserId: user.id,
-      })
-    }
+    const client = await payload.findByID({ collection: 'clients', id: clientId, depth: 0, overrideAccess: true }).catch(() => null) as { name?: string } | null
+    await notifyMonthlyNegativesComplete(payload, {
+      clientId,
+      clientName: client?.name || `Client ${clientId}`,
+      yearMonth,
+      needsReviewCount,
+      triggeredByUserId: user.id,
+      triggeredByName: (user as { name?: string; email?: string }).name || (user as { email?: string }).email || null,
+    })
   }
 
   return NextResponse.json({

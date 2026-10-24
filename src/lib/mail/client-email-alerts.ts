@@ -20,6 +20,13 @@ import { cmsMailThreadPath } from './drafts'
  *  - Only emails dated within ALERT_MAX_AGE_MS.
  *  - At most MAX_ALERTS_PER_SYNC rows per sync; the rest stay in Mail.
  *  - One row per Gmail message (deduped on recipient + kind + url).
+ *  - Never for calendar invites (any email carrying a text/calendar or .ics
+ *    part: invitations, updates, cancellations, RSVPs).
+ *  - Never from people at google.com (Google reps). Google service mailboxes
+ *    such as googlecloud@google.com still alert.
+ *
+ * The email itself is still stored on the client's timeline in every case;
+ * these rules only decide whether the bell lights up.
  */
 
 export const CLIENT_EMAIL_ALERT_KIND = 'client-email-received'
@@ -40,6 +47,8 @@ export interface ClientEmailAlertInput {
   date: string
   /** Extra Gmail account the email arrived in, so the alert opens Mail on it; omitted = main Gmail. */
   account?: string
+  /** True when the email carries a calendar invite (text/calendar or .ics part). */
+  calendarInvite?: boolean
 }
 
 /** Display name from a From header: `Jo Smith <jo@x.com>` -> `Jo Smith`. */
@@ -48,6 +57,18 @@ export function senderLabel(from: string): string {
   const named = trimmed.match(/^"?([^"<]+?)"?\s*<[^>]+>$/)
   if (named?.[1]) return named[1].trim()
   return trimmed.replace(/^<|>$/g, '')
+}
+
+/** Google mailboxes that are services, not people: their notices still alert. */
+const GOOGLE_SERVICE_LOCAL_PART_RE =
+  /^(?:google[a-z0-9.-]*|cloud[a-z0-9.-]*|workspace[a-z0-9.-]*|payments?[a-z0-9.-]*|billing[a-z0-9.-]*|ads[a-z0-9.-]*|analytics[a-z0-9.-]*|support[a-z0-9.-]*|accounts?[a-z0-9.-]*|security[a-z0-9.-]*|[a-z0-9.-]*no-?reply[a-z0-9.-]*)$/i
+
+/** A person at google.com (a Google rep), as opposed to a Google service mailbox. */
+export function isGoogleRepSender(from: string): boolean {
+  const address = (from ?? '').match(/<([^>]+)>/)?.[1] ?? (from ?? '').trim()
+  const [local = '', domain = ''] = address.toLowerCase().split('@')
+  if (domain !== 'google.com' || !local) return false
+  return !GOOGLE_SERVICE_LOCAL_PART_RE.test(local)
 }
 
 export function isFreshEmail(date: string, now: Date): boolean {
@@ -71,6 +92,8 @@ export async function createClientEmailAlert(
   now: Date = new Date(),
 ): Promise<boolean> {
   if (!isFreshEmail(input.date, now)) return false
+  if (input.calendarInvite) return false
+  if (isGoogleRepSender(input.from)) return false
   const url = alertUrl(input)
 
   const existing = await payload.find({

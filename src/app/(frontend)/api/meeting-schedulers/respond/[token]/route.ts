@@ -475,7 +475,8 @@ export async function POST(
   }
 
   // CMS bell notifications + decline email. Fired per the attendee's response:
-  // accepted and declined notify admins; maybe does not. A confirmed time also
+  // accepted notifies admins in the bell; declined goes to the activity log and
+  // the agency decline email only; maybe does neither. A confirmed time also
   // notifies admins.
   const responderName = currentAttendee.name || currentAttendee.email || "An attendee";
   if (response === "accepted") {
@@ -493,13 +494,6 @@ export async function POST(
       client: meetingSchedulerClientId(doc.client),
     }).catch(() => {});
   } else if (response === "declined") {
-    await notifyAdminsOfMeetingEvent(payload, {
-      kind: "meeting-response-declined",
-      title: `${responderName} declined: ${doc.title}`,
-      body: `${currentAttendee.email || ""}`.trim() || undefined,
-      schedulerId: doc.id,
-      client: meetingSchedulerClientId(doc.client),
-    });
     logActivity(payload, {
       type: "meeting_response_declined",
       title: `Meeting declined: ${doc.title}`,

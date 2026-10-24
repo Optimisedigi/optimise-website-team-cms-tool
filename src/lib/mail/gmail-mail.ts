@@ -184,8 +184,8 @@ export async function getThreadMessages(accessToken: string, threadId: string): 
 
 const CALENDAR_MAX_BYTES = 256 * 1024;
 
-/** The iCalendar text of a message (text/calendar part or .ics file), or "". */
-async function readCalendarText(gmail: gmail_v1.Gmail, message: gmail_v1.Schema$Message): Promise<string> {
+/** The message's calendar part (inline text/calendar preferred, else an .ics file), if any. */
+function findCalendarPart(message: gmail_v1.Schema$Message): gmail_v1.Schema$MessagePart | undefined {
   const parts: gmail_v1.Schema$MessagePart[] = [];
   const walk = (part: gmail_v1.Schema$MessagePart) => {
     parts.push(part);
@@ -195,7 +195,12 @@ async function readCalendarText(gmail: gmail_v1.Gmail, message: gmail_v1.Schema$
   const isIcs = (part: gmail_v1.Schema$MessagePart) =>
     part.mimeType === "application/ics" || /\.ics$/i.test(part.filename ?? "");
   // Prefer the inline text/calendar part; it carries the METHOD.
-  const part = parts.find((p) => p.mimeType === "text/calendar") ?? parts.find(isIcs);
+  return parts.find((p) => p.mimeType === "text/calendar") ?? parts.find(isIcs);
+}
+
+/** The iCalendar text of a message (text/calendar part or .ics file), or "". */
+async function readCalendarText(gmail: gmail_v1.Gmail, message: gmail_v1.Schema$Message): Promise<string> {
+  const part = findCalendarPart(message);
   if (!part?.body || (part.body.size ?? 0) > CALENDAR_MAX_BYTES) return "";
   let data = part.body.data ?? "";
   if (!data && part.body.attachmentId && message.id) {
@@ -254,10 +259,13 @@ export async function getRawMessage(accessToken: string, messageId: string, maxB
   return raw.length > maxBytes ? null : raw;
 }
 
-export async function getFullMessage(accessToken: string, messageId: string): Promise<GmailFullMessage> {
+export async function getFullMessage(
+  accessToken: string,
+  messageId: string,
+): Promise<GmailFullMessage & { hasCalendarInvite?: boolean }> {
   const gmail = gmailApi(accessToken);
   const res = await gmail.users.messages.get({ userId: "me", id: messageId, format: "full" });
-  return parseGmailFullMessage(res.data);
+  return { ...parseGmailFullMessage(res.data), hasCalendarInvite: Boolean(findCalendarPart(res.data)) };
 }
 
 export interface MessageHeadersOnly {

@@ -96,6 +96,19 @@ describe("createClientEmailAlert", () => {
     expect(payload.tables.notifications).toHaveLength(1);
   });
 
+  it("skips calendar invites", async () => {
+    const payload = fakePayload([]);
+    expect(await createClientEmailAlert(payload as never, alertInput({ calendarInvite: true, subject: "Canceled: QA test" }), NOW)).toBe(false);
+    expect(payload.tables.notifications).toHaveLength(0);
+  });
+
+  it("skips Google reps but still alerts for Google service mailboxes", async () => {
+    const payload = fakePayload([]);
+    expect(await createClientEmailAlert(payload as never, alertInput({ from: "Michael Bentley <michaelbentley@google.com>" }), NOW)).toBe(false);
+    expect(await createClientEmailAlert(payload as never, alertInput({ from: "Google Cloud <googlecloud@google.com>", gmailThreadId: "t2" }), NOW)).toBe(true);
+    expect(payload.tables.notifications).toHaveLength(1);
+  });
+
   it("skips old emails", async () => {
     const payload = fakePayload([]);
     expect(await createClientEmailAlert(payload as never, alertInput({ date: "2026-10-01T00:00:00.000Z" }), NOW)).toBe(false);
@@ -144,6 +157,17 @@ describe("syncMailbox raises client email alerts", () => {
     });
     expect(again.alerts).toBe(0);
     expect(payload.tables.notifications).toHaveLength(1);
+  });
+
+  it("stores calendar invites from a client without alerting", async () => {
+    const payload = fakePayload(clients);
+    payload.tables["mail-sync-states"].push({ id: 99, user: 10, historyId: "100" });
+    const d = deps(["inbound"]);
+    const plain = d.getFullMessage.getMockImplementation()!;
+    d.getFullMessage.mockImplementation(async (t: string, id: string) => ({ ...(await plain(t, id)), hasCalendarInvite: true }));
+    const result = await syncMailbox({ payload: payload as never, userId: 10, accessToken: "tok", hiddenSenders: [], deps: d });
+    expect(result).toMatchObject({ mode: "incremental", stored: 1, alerts: 0 });
+    expect(payload.tables.notifications).toHaveLength(0);
   });
 
   it("does not alert for mail from a non-client that only copies a client in", async () => {

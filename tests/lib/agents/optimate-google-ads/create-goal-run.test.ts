@@ -212,7 +212,6 @@ describe("create_goal_run — execute()", () => {
       },
       overrideAccess: true,
       disableTransaction: true,
-      context: { deferApprovalNotifications: true },
     });
     expect(findByIDImpl).toHaveBeenCalledWith(expect.objectContaining({
       collection: "agent-approval-queue",
