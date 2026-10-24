@@ -55,6 +55,8 @@ export interface ResearchInsights {
   topicsFailedReasons?: Record<string, string>;
   /** Model attempts per topic key (failed topics retry until RESEARCH_TOPIC_MAX_ATTEMPTS). */
   topicAttempts?: Record<string, number>;
+  /** Version of the research step that wrote this; a newer version retries topics an older one failed. */
+  parserVersion?: number;
   /** false while topics are still missing or the final statuses haven't run; absent (older rows) = complete. */
   complete?: boolean;
   /** When the latest insights job started (self-heal de-duplication). */
@@ -63,6 +65,8 @@ export interface ResearchInsights {
 
 /** A topic that failed is retried until it has had this many model attempts. */
 export const RESEARCH_TOPIC_MAX_ATTEMPTS = 3;
+/** Current version of the research step (kept in sync with placement.ts RESEARCH_PARSER_VERSION). */
+export const RESEARCH_STEP_VERSION = 2;
 
 /**
  * Still work to do: explicitly partial, or finished with failed topics that
@@ -74,6 +78,8 @@ export function insightsIncomplete(insights: ResearchInsights): boolean {
   const failed = insights.topicsFailedKeys ?? [];
   if (!failed.length) return false;
   const attempts = insights.topicAttempts;
+  // Attempts used up under an older version of this step: retry once more with the fix.
+  if (attempts && (insights.parserVersion ?? 1) < RESEARCH_STEP_VERSION) return true;
   if (!attempts) return true;
   return failed.some((k) => (attempts[k] ?? 1) < RESEARCH_TOPIC_MAX_ATTEMPTS);
 }
@@ -98,6 +104,7 @@ export function parseResearchInsights(value: unknown): ResearchInsights | null {
     ...(Array.isArray(v.topicsFailedKeys) ? { topicsFailedKeys: v.topicsFailedKeys.filter((k): k is string => typeof k === "string") } : {}),
     ...(isRecord(v.topicsFailedReasons) ? { topicsFailedReasons: Object.fromEntries(Object.entries(v.topicsFailedReasons).filter((e): e is [string, string] => typeof e[1] === "string")) } : {}),
     ...(isRecord(v.topicAttempts) ? { topicAttempts: Object.fromEntries(Object.entries(v.topicAttempts).filter((e): e is [string, number] => typeof e[1] === "number")) } : {}),
+    ...(typeof v.parserVersion === "number" ? { parserVersion: v.parserVersion } : {}),
     ...(typeof v.complete === "boolean" ? { complete: v.complete } : {}),
     ...(typeof v.insightsStartedAt === "string" ? { insightsStartedAt: v.insightsStartedAt } : {}),
   };

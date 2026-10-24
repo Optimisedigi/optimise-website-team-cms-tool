@@ -124,3 +124,13 @@ describe("generateIdeas", () => {
     expect(needsIdeas(sample)).toBe(true);
   });
 });
+
+import { salvageArray } from "@/lib/content-map/llm";
+
+describe("salvageArray", () => {
+  it("returns the complete objects of a cut-off array, ignoring braces inside strings", () => {
+    const text = '```json\n{"ideas":[{"title":"A {curly} \\"quoted\\" one","n":1},{"title":"B","nested":{"x":[1,2]}},{"title":"C cut of';
+    expect(salvageArray(text, "ideas")).toEqual([{ title: 'A {curly} "quoted" one', n: 1 }, { title: "B", nested: { x: [1, 2] } }]);
+    expect(salvageArray('{"other":[]}', "ideas")).toEqual([]);
+  });
+});

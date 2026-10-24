@@ -23,7 +23,8 @@ import type { Payload } from "payload";
 import { authoritiesFromClient } from "./authorities";
 import { buildGscSignals, latestGsc, maybePullWeeklyGsc, needsDailyGsc, pullGsc, type GscPullResult } from "./gsc";
 import { latestCompletedDoc, normTitle, toRecommendation } from "./ideas";
-import { callContentMapModel, extractJson, type ContentMapLlmResult } from "./llm";
+import { callContentMapModel, extractJson, salvageArray, type ContentMapLlmResult } from "./llm";
+
 import { handOffInsights } from "./handoff";
 import { buildPlan } from "./plan";
 import {
@@ -35,6 +36,7 @@ import {
   parseResearchInsights,
   parseResearchResult,
   pollStaleResearchRun,
+  RESEARCH_STEP_VERSION,
   RESEARCH_TOPIC_MAX_ATTEMPTS,
   startResearchRun,
   type ResearchInsights,
@@ -457,7 +459,7 @@ Reply with JSON only:
     input.gsc.length ? "Search Console queries without a good page (query | impressions | position):" : "",
     ...input.gsc.slice(0, MAX_INPUT_GSC).map((g) => `- ${g.query} | ${g.impressions} | ${g.position}`),
     "",
-    "Give up to 10 ideas, strongest demand first.",
+    `Give up to ${RESEARCH_IDEAS_PER_CALL} ideas, strongest demand first. Keep each brief compact: outline up to 5 H2s, up to 4 FAQs, up to 6 entities, up to 3 evidence points.`,
   ].filter((l, i, a) => l !== "" || (i > 0 && a[i - 1] !== "")).join("\n");
   return { system, user };
 }
@@ -687,6 +689,22 @@ async function suggestNewTopics(payload: Payload, clientId: string, ideas: reado
 /** Research insights topics run 4 at a time; each call gets 120 s (2 rounds of 8 topics fit Vercel's 300 s). */
 export const RESEARCH_INSIGHTS_CONCURRENCY = 4;
 export const RESEARCH_INSIGHTS_TIMEOUT_MS = 120_000;
+/**
+ * Ideas asked for per topic call, and the answer limit. Ten full briefs plus
+ * the model's thinking ran past 8,000 tokens and the cut-off reply read as
+ * "no ideas" (production, 2026-10-24); six compact briefs fit well inside 16,000.
+ */
+export const RESEARCH_IDEAS_PER_CALL = 6;
+export const RESEARCH_MAX_TOKENS = 16_000;
+/** Strings from a (possibly cut-off) `"key": ["a", "b", …` list in a reply. */
+function salvageStrings(text: string, key: string): string[] {
+  const m = new RegExp(`"${key}"\\s*:\\s*\\[([^\\]]*)`).exec(text);
+  if (!m) return [];
+  return [...m[1]!.matchAll(/"((?:[^"\\]|\\.)*)"/g)].map((x) => { try { return JSON.parse(`"${x[1]}"`) as string; } catch { return ""; } }).filter(Boolean);
+}
+
+/** Bumped when a fix should give previously failed topics fresh attempts. */
+export const RESEARCH_PARSER_VERSION = RESEARCH_STEP_VERSION;
 /** Self-heal waits this long after the run finished / the last job started before restarting missing topics. */
 export const INSIGHTS_HEAL_AFTER_MS = 6 * 60 * 1000;
 const MAX_INPUT_KEYWORDS = 40;
@@ -787,6 +805,8 @@ export async function writeResearchInsights(
   const failedReasons: Record<string, string> = {};
   // Older rows (complete with failures, no attempts) count their failed topics as one attempt.
   const attempts: Record<string, number> = { ...(resume?.topicAttempts ?? Object.fromEntries((resume?.topicsFailedKeys ?? []).map((k) => [k, 1]))) };
+  // Topics that failed under an older version of this step get fresh attempts with the fix.
+  if (resume?.topicAttempts && (resume.parserVersion ?? 1) < RESEARCH_PARSER_VERSION) for (const k of resume.topicsFailedKeys ?? []) attempts[k] = 0;
   for (const k of resume?.topicsDone ?? []) attempts[k] ??= 1;
   const sortedRecord = <T>(r: Record<string, T>): Record<string, T> => Object.fromEntries(Object.entries(r).sort(([a], [b]) => a.localeCompare(b)));
   const drafts: DraftIdea[] = (resume?.ideas ?? []).map((idea) => ({ idea, brief: resume?.briefs[idea.id] ?? null }));
@@ -808,6 +828,7 @@ export async function writeResearchInsights(
       topicsFailedKeys: [...failed].sort(),
       topicsFailedReasons: sortedRecord(failedReasons),
       topicAttempts: sortedRecord(attempts),
+      parserVersion: RESEARCH_PARSER_VERSION,
       complete: false,
       insightsStartedAt: startedAt,
     };
@@ -831,13 +852,23 @@ export async function writeResearchInsights(
       const { topic, input } = task;
       attempts[topic.key] = (attempts[topic.key] ?? 0) + 1;
       try {
-        const res = await call(payload, { ...buildResearchPrompt(ctx, input, result.siteUrl), maxTokens: 8000, timeoutMs: RESEARCH_INSIGHTS_TIMEOUT_MS });
+        const res = await call(payload, { ...buildResearchPrompt(ctx, input, result.siteUrl), maxTokens: RESEARCH_MAX_TOKENS, timeoutMs: RESEARCH_INSIGHTS_TIMEOUT_MS });
         const stats = emptyParseStats();
-        const parsed = parseResearchIdeas(extractJson(res.text), ctx, input, competitorTerms(input.competitors, [topic.key, topic.name]), stats);
+        const cutOff = res.stopReason === "max_tokens";
+        // A reply cut off at the answer limit isn't valid JSON: keep the ideas that did arrive whole.
+        let json = extractJson(res.text);
+        if (!(isRecord(json) && Array.isArray(json.ideas)) && !Array.isArray(json)) {
+          const ideas = salvageArray(res.text, "ideas");
+          const discarded = salvageStrings(res.text, "discarded");
+          if (ideas.length) json = { discarded, ideas };
+        }
+        const parsed = parseResearchIdeas(json, ctx, input, competitorTerms(input.competitors, [topic.key, topic.name]), stats);
         if (!parsed.length) {
-          const reason = describeParseStats(stats);
+          const reason = !stats.raw && (cutOff || res.text.length > 200)
+            ? `The model's reply ${cutOff ? "was cut off at the answer limit" : "wasn't readable JSON"} (${res.text.length} characters)`
+            : describeParseStats(stats);
           console.warn(
-            `[content-map] research insights for "${topic.name}" kept no ideas (attempt ${attempts[topic.key]}): raw=${stats.raw} noEvidence=${stats.noEvidence} badPlacement=${stats.badPlacement} competitorTerm=${stats.competitor} duplicate=${stats.duplicate} invalid=${stats.invalid}`,
+            `[content-map] research insights for "${topic.name}" kept no ideas (attempt ${attempts[topic.key]}): raw=${stats.raw} noEvidence=${stats.noEvidence} badPlacement=${stats.badPlacement} competitorTerm=${stats.competitor} duplicate=${stats.duplicate} invalid=${stats.invalid} stop=${res.stopReason ?? "?"} replyChars=${res.text.length} outputTokens=${res.outputTokens ?? "?"} model=${res.model}`,
           );
           failedReasons[topic.key] = reason;
           failed.add(topic.key);
@@ -886,6 +917,7 @@ export async function writeResearchInsights(
     topicsFailedKeys: [...failed].sort(),
     topicsFailedReasons: sortedRecord(failedReasons),
     topicAttempts: sortedRecord(attempts),
+    parserVersion: RESEARCH_PARSER_VERSION,
     // Failed topics with attempts left keep the run open so self-heal retries just those.
     complete: ![...failed].some((k) => (attempts[k] ?? 0) < RESEARCH_TOPIC_MAX_ATTEMPTS),
     insightsStartedAt: startedAt,

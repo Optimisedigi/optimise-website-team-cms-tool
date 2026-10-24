@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 const afterMock = vi.hoisted(() => vi.fn());
 vi.mock("next/server", async (orig) => ({ ...(await orig<typeof import("next/server")>()), after: afterMock }));
 import { healResearchInsights, trimResearchInput, writeResearchInsights } from "@/lib/content-map/placement";
-import { parseResearchInsights } from "@/lib/content-map/research";
+import { insightsIncomplete, parseResearchInsights } from "@/lib/content-map/research";
 import { citationInsightsStalled, healCitationInsights, writeInsights } from "@/lib/content-map/citations";
 import { parseInsights } from "@/lib/content-map/plan";
 import type { CitationsResult, ResearchResult } from "@/lib/content-map/types";
@@ -99,6 +99,47 @@ describe("research insights: parallel + incremental", () => {
     expect(call2.mock.calls.map((c) => topicOf(c[1].user)).sort()).toEqual(["delta", "echo"]);
     expect(stored()?.complete).toBe(true);
     expect(stored()?.ideas.filter((i) => i.status === "in-plan")).toHaveLength(6);
+  });
+
+  it("a reply cut off at the answer limit keeps the ideas that arrived whole, and asks for compact briefs", async () => {
+    const { payload, stored, doc } = setup();
+    const call = vi.fn(async (_p: unknown, i: { user: string; maxTokens?: number }) => {
+      const key = topicOf(i.user);
+      const full = JSON.stringify({ discarded: ["how to immigrate"], ideas: [
+        { title: `Complete guide to ${key} services`, question: `What does ${key} cost?`, keywords: [`${key} service demand`], topic: key, fit: 0.8, placement: "new-article", ...brief },
+        { title: `Second ${key} article idea here`, question: `How long does ${key} take?`, keywords: [`${key} service demand`], topic: key, fit: 0.7, placement: "new-article", ...brief },
+      ] });
+      // Cut off half-way through the second idea.
+      return { text: full.slice(0, full.indexOf("Second") + 20), model: "claude-sonnet-5.5", stopReason: "max_tokens" };
+    });
+    const out = await writeResearchInsights(payload as never, doc(), { call, now: () => NOW });
+    expect(out.ok).toBe(true);
+    expect(call.mock.calls[0]![1].maxTokens).toBe(16_000);
+    expect(call.mock.calls[0]![1].user).toMatch(/Give up to 6 ideas/);
+    expect(stored()?.topicsFailedKeys ?? []).toEqual([]);
+    expect(stored()?.ideas.map((i) => i.title).sort()).toEqual(KEYS.map((k) => `Complete guide to ${k} services`).sort());
+  });
+
+  it("records a cut-off reply with nothing usable as the reason", async () => {
+    const { stored, payload, doc } = setup();
+    const call = vi.fn(async () => ({ text: `{"discarded":["a"],"ideas":[{"title":"Half an ide${"x".repeat(400)}`, model: "claude-sonnet-5.5", stopReason: "max_tokens" }));
+    await writeResearchInsights(payload as never, doc(), { call, now: () => NOW });
+    expect(stored()?.topicsFailedReasons?.alpha).toMatch(/cut off at the answer limit/);
+  });
+
+  it("topics that failed under the old step get fresh attempts (production: 2 used of 3)", async () => {
+    const old = {
+      model: "claude-sonnet-5.5", generatedAt: "2026-10-24T04:53:21.000Z", gscId: null, ideas: [], briefs: {}, inProgress: [],
+      topicsFailed: 5, topicsDone: ["alpha"], topicsFailedKeys: ["bravo", "charlie", "delta", "echo", "foxtrot"],
+      topicAttempts: { alpha: 1, bravo: 3, charlie: 3, delta: 3, echo: 3, foxtrot: 3 }, complete: true,
+    };
+    const { payload, stored, doc } = setup(old);
+    expect(insightsIncomplete(parseResearchInsights(old)!)).toBe(true);
+    const call = vi.fn(async (_p: unknown, i: { user: string }) => ({ text: reply(topicOf(i.user)), model: "claude-sonnet-5.5" }));
+    await writeResearchInsights(payload as never, doc(), { call, now: () => NOW });
+    expect(call.mock.calls.map((c) => topicOf(c[1].user)).sort()).toEqual(["bravo", "charlie", "delta", "echo", "foxtrot"]);
+    expect(stored()?.parserVersion).toBe(2);
+    expect(stored()?.complete).toBe(true);
   });
 
   it("trims each topic's model input", () => {

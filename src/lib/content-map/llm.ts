@@ -68,6 +68,9 @@ export async function contentMapModelChain(
 export interface ContentMapLlmResult {
   text: string;
   model: string;
+  /** "max_tokens" means the reply was cut off at the answer limit. */
+  stopReason?: string;
+  outputTokens?: number;
 }
 
 /** One-shot text call through the Content Map chain. */
@@ -94,7 +97,7 @@ export async function callContentMapModel(
     .map((part) => (part.type === "text" ? part.text : ""))
     .join("")
     .trim();
-  return { text, model: response.model };
+  return { text, model: response.model, stopReason: response.stopReason, outputTokens: response.usage?.outputTokens };
 }
 
 /** Pull the first JSON object or array out of a model reply (tolerates ``` fences and prose). */
@@ -118,4 +121,43 @@ export function extractJson(text: string): unknown {
   } catch {
     return null;
   }
+}
+
+/**
+ * Complete objects from a JSON array that was cut off mid-way, e.g. a reply
+ * that hit the answer limit: `{"ideas":[{...},{...},{"ti` → the first two.
+ * `key` names the array to read (`"ideas"`); without it, the first array.
+ */
+export function salvageArray(text: string, key?: string): unknown[] {
+  let start = -1;
+  if (key) {
+    const m = new RegExp(`"${key}"\\s*:\\s*\\[`).exec(text);
+    if (m) start = m.index + m[0].length;
+  } else {
+    start = text.indexOf("[") + 1;
+  }
+  if (start <= 0) return [];
+  const out: unknown[] = [];
+  let depth = 0, inStr = false, esc = false, objStart = -1;
+  for (let i = start; i < text.length; i++) {
+    const ch = text[i];
+    if (inStr) {
+      if (esc) esc = false;
+      else if (ch === "\\") esc = true;
+      else if (ch === '"') inStr = false;
+      continue;
+    }
+    if (ch === '"') { inStr = true; continue; }
+    if (ch === "{") { if (depth === 0) objStart = i; depth++; continue; }
+    if (ch === "}") {
+      depth--;
+      if (depth === 0 && objStart >= 0) {
+        try { out.push(JSON.parse(text.slice(objStart, i + 1))); } catch { /* skip a broken object */ }
+        objStart = -1;
+      }
+      continue;
+    }
+    if (ch === "]" && depth === 0) break;
+  }
+  return out;
 }
