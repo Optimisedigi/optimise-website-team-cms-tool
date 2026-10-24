@@ -347,7 +347,7 @@ const NotificationsBell = (): ReactElement | null => {
                 : undefined,
             }}
           >
-            {unreadCount > 99 ? "99+" : unreadCount}
+            {unreadCount}
           </span>
         )}
       </button>

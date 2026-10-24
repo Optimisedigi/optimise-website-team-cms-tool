@@ -2,17 +2,7 @@
 
 import { useId, useMemo, useState, type KeyboardEvent } from 'react'
 import { matchMailContacts, type MailContact } from '../../lib/mail/contacts-shared'
-import type { MailSearchScope } from '../../lib/mail/inbox-search'
 import styles from './MailApp.module.css'
-
-/** The "Search in" choices, in order (see mailSearchQuery). */
-const SCOPE_LABELS: Record<MailSearchScope, string> = {
-  all: 'Everything',
-  person: 'Name or address',
-  subject: 'Subject',
-  body: 'Email text',
-}
-const SCOPES = Object.keys(SCOPE_LABELS) as MailSearchScope[]
 
 interface Props {
   value: string
@@ -29,19 +19,16 @@ interface Props {
   /** Called on focus so the people list loads before the first letters are typed. */
   onWantSenders: () => void
   label: string
-  /** Where the search looks; the choice runs the typed search again. */
-  scope: MailSearchScope
-  onScopeChange: (scope: MailSearchScope) => void
 }
 
 /**
  * The Mail list's search box. It suggests people from your mail as you type
  * (from the second letter, or "@" and a letter for a domain); picking one
  * lists their mail. Enter runs the typed search unless a suggestion is
- * highlighted with the arrow keys; Escape closes the list. "Search in" limits
- * the search to the person, the subject or the email's text.
+ * highlighted with the arrow keys; Escape closes the list. The search always
+ * looks at the person's name and address, the subject and the email's text.
  */
-export function InboxSearch({ value, onChange, onSubmit, onPickSender, senders, onWantSenders, label, scope, onScopeChange }: Props) {
+export function InboxSearch({ value, onChange, onSubmit, onPickSender, senders, onWantSenders, label }: Props) {
   const listId = useId()
   const [focused, setFocused] = useState(false)
   const [dismissed, setDismissed] = useState(false)
@@ -49,8 +36,8 @@ export function InboxSearch({ value, onChange, onSubmit, onPickSender, senders, 
   const [active, setActive] = useState(-1)
 
   const suggestions = useMemo(
-    () => (focused && !dismissed && (scope === 'all' || scope === 'person') ? matchMailContacts(senders, value) : []),
-    [senders, focused, dismissed, value, scope],
+    () => (focused && !dismissed ? matchMailContacts(senders, value) : []),
+    [senders, focused, dismissed, value],
   )
   const open = suggestions.length > 0
   const highlighted = active < suggestions.length ? active : -1
@@ -91,7 +78,6 @@ export function InboxSearch({ value, onChange, onSubmit, onPickSender, senders, 
         onSubmit(value)
       }}
     >
-      <div className={styles.searchRow}>
       <div className={styles.searchBox}>
         <input
           type="search"
@@ -138,23 +124,6 @@ export function InboxSearch({ value, onChange, onSubmit, onPickSender, senders, 
             ))}
           </ul>
         ) : null}
-      </div>
-      <select
-        className={styles.searchScope}
-        value={scope}
-        aria-label="Search in"
-        title="Search in"
-        onChange={(e) => {
-          const next = SCOPES.find((entry) => entry === e.target.value) ?? 'all'
-          onScopeChange(next)
-        }}
-      >
-        {SCOPES.map((entry) => (
-          <option key={entry} value={entry}>
-            {SCOPE_LABELS[entry]}
-          </option>
-        ))}
-      </select>
       </div>
     </form>
   )

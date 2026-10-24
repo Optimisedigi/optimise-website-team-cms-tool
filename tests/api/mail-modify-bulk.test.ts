@@ -56,9 +56,19 @@ describe('POST /api/mail/modify', () => {
     expect(modifyThreadLabels).not.toHaveBeenCalled()
   })
 
-  it('never bins in bulk', async () => {
-    expect((await POST(post({ threadIds: ['t1', 't2'], action: 'trash' }))).status).toBe(400)
-    expect(trashThread).not.toHaveBeenCalled()
+  it('moves several threads to the Bin at once, and back for Undo', async () => {
+    expect((await POST(post({ threadIds: ['t1', 't2', 't1'], action: 'trash' }))).status).toBe(200)
+    expect(trashThread.mock.calls.map((call) => [call[1], call[2]])).toEqual([
+      ['t1', false],
+      ['t2', false],
+    ])
+    trashThread.mockClear()
+    expect((await POST(post({ threadIds: ['t1', 't2'], action: 'untrash' }))).status).toBe(200)
+    expect(trashThread.mock.calls.map((call) => [call[1], call[2]])).toEqual([
+      ['t1', true],
+      ['t2', true],
+    ])
+    expect(modifyThreadLabels).not.toHaveBeenCalled()
   })
 
   it('refuses bulk archive, empty or oversized lists and bad ids, touching nothing', async () => {

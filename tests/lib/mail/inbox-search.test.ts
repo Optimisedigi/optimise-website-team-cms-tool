@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { inboxSearchQuery, mailSearchQuery, parseSearchScope, parseSearchSenders } from '@/lib/mail/inbox-search'
+import { inboxSearchQuery, mailSearchQuery, parseSearchScope, parseSearchSenders, rankMailSearchResults } from '@/lib/mail/inbox-search'
 
 describe('inboxSearchQuery', () => {
   it('matches a full sender address as well as free text', () => {
@@ -84,5 +84,27 @@ describe('mailSearchQuery (Search in)', () => {
     expect(parseSearchScope('subject')).toBe('subject')
     expect(parseSearchScope('} OR in:trash')).toBe('all')
     expect(parseSearchScope(null)).toBe('all')
+  })
+})
+
+describe('rankMailSearchResults', () => {
+  const row = (from: string, subject: string, snippet = '') => ({ from, to: 'me@od.com', subject, snippet })
+  it('puts the person match first, then subject, then preview, keeping Gmail order for ties', () => {
+    const rows = [
+      row('Sam <sam@x.com>', 'Other', 'mentions budget here'),
+      row('Sam <sam@x.com>', 'Budget for May'),
+      row('Budget Bot <bot@budget.io>', 'Hi'),
+      row('Ann <ann@y.com>', 'Budget for June'),
+    ]
+    expect(rankMailSearchResults(rows, 'budget', { folder: 'inbox' }).map((r) => r.subject)).toEqual([
+      'Hi',
+      'Budget for May',
+      'Budget for June',
+      'Other',
+    ])
+  })
+  it('keeps Gmail order for hand-written Gmail searches', () => {
+    const rows = [row('A <a@x.com>', 'one'), row('budget <b@x.com>', 'two')]
+    expect(rankMailSearchResults(rows, 'from:budget', { folder: 'inbox' })).toEqual(rows)
   })
 })

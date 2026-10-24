@@ -102,3 +102,73 @@ export function mailSearchQuery(
   if (inbox) return inboxSearchQuery(raw, options.senderAddresses ?? []);
   return `{${group} ${personParts.join(" ")}}`;
 }
+
+/** A listed email, as far as ranking search results needs it. */
+export interface RankableMailRow {
+  from: string;
+  to: string;
+  subject: string;
+  snippet: string;
+}
+
+function lowerText(value: string): string {
+  return value.toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+function addressesIn(header: string): string[] {
+  return (header.toLowerCase().match(/[a-z0-9._%+'-]+@[a-z0-9.-]+/g) ?? []).map((a) => a.replace(/\.+$/, ""));
+}
+
+function containsAll(text: string, terms: readonly string[]): boolean {
+  return terms.length > 0 && terms.every((term) => text.includes(term));
+}
+
+/**
+ * How closely one email matches the typed search, highest first:
+ * 6 the person's name or address is exactly the text; 5 a word of the
+ * person's name or address starts with it; 4 the person matches anywhere
+ * (or is one of `matchedAddresses`, the people the text matched by part of a
+ * name); 3 the subject has the text; 2 the subject has every word; 1 the
+ * preview has every word; 0 Gmail matched it somewhere else (e.g. the body).
+ */
+export function mailSearchScore(
+  row: RankableMailRow,
+  raw: string,
+  options: { folder: string; matchedAddresses?: readonly string[] },
+): number {
+  const phrase = lowerText(raw);
+  if (!phrase) return 0;
+  const terms = phrase.split(" ");
+  const personHeader = options.folder === "inbox" ? row.from : row.to;
+  const person = lowerText(personHeader);
+  const addresses = addressesIn(personHeader);
+  const name = lowerText(personHeader.replace(/<[^>]*>/g, "").replace(/"/g, ""));
+  if (name === phrase || addresses.includes(phrase)) return 6;
+  const words = person.split(/[\s<>"@.,_-]+/).filter(Boolean);
+  if (words.some((word) => word.startsWith(phrase)) || addresses.some((a) => a.startsWith(phrase)) || name.startsWith(phrase)) return 5;
+  const matched = new Set((options.matchedAddresses ?? []).map((a) => a.toLowerCase()));
+  if (person.includes(phrase) || containsAll(person, terms) || addresses.some((a) => matched.has(a))) return 4;
+  const subject = lowerText(row.subject);
+  if (subject.includes(phrase)) return 3;
+  if (containsAll(subject, terms)) return 2;
+  if (containsAll(lowerText(row.snippet), terms)) return 1;
+  return 0;
+}
+
+/**
+ * Search results with the closest matches first (see mailSearchScore); equal
+ * matches keep Gmail's order (newest first). Hand-written Gmail searches keep
+ * Gmail's order unchanged.
+ */
+export function rankMailSearchResults<T extends RankableMailRow>(
+  rows: readonly T[],
+  raw: string,
+  options: { folder: string; matchedAddresses?: readonly string[] },
+): T[] {
+  const terms = raw.trim();
+  if (!terms || GMAIL_SYNTAX.test(terms)) return [...rows];
+  return rows
+    .map((row, index) => ({ row, index, score: mailSearchScore(row, terms, options) }))
+    .sort((a, b) => b.score - a.score || a.index - b.index)
+    .map((entry) => entry.row);
+}

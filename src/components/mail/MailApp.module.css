@@ -70,28 +70,10 @@
   border-bottom: 1px solid var(--mail-border);
 }
 
-.searchRow {
-  display: flex;
-  gap: 6px;
-  align-items: stretch;
-}
-
 .searchBox {
   position: relative;
   flex: 1;
   min-width: 0;
-}
-
-.searchScope {
-  flex-shrink: 0;
-  max-width: 42%;
-  padding: 7px 6px;
-  border: 1px solid var(--theme-elevation-150);
-  border-radius: 6px;
-  background: var(--theme-elevation-100);
-  color: var(--mail-text);
-  font: inherit;
-  font-size: 13px;
 }
 
 .searchList {
@@ -345,6 +327,30 @@ p.bulkBar {
 .bulkCount {
   margin-right: auto;
   font-weight: 600;
+}
+
+/* The selection toolbar: a quiet count and compact actions on one row. */
+.bulkBar[role='toolbar'] {
+  gap: 6px;
+}
+
+.bulkBar[role='toolbar'] .bulkCount {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--mail-muted);
+  white-space: nowrap;
+}
+
+.bulkBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  font-size: 12px;
+}
+
+.bulkDelete {
+  color: #b42318;
 }
 
 .deleteDraft,

@@ -35,7 +35,7 @@ import MailStepNav from './MailStepNav'
 import { InboxSearch } from './InboxSearch'
 import { searchSenderAddresses, suggestionPeople, type MailContact } from '../../lib/mail/contacts-shared'
 import { loadSavedPeople, peopleNeedRefresh, savePeople } from '../../lib/mail/people-cache'
-import type { MailSearchScope } from '../../lib/mail/inbox-search'
+import { rankMailSearchResults } from '../../lib/mail/inbox-search'
 import {
   COMPOSE_POPOUT_PARAM,
   composePopoutPath,
@@ -361,7 +361,7 @@ export default function MailApp({ clients, windowMode = false }: { clients: Mail
   // Inbox rows ticked for a bulk action (thread ids); only rows still listed count.
   const [checkedThreads, setCheckedThreads] = useState<Set<string>>(() => new Set())
   // Which bulk action is running on the ticked rows, if any.
-  const [bulkBusyAction, setBulkBusyAction] = useState<'read' | 'unread' | null>(null)
+  const [bulkBusyAction, setBulkBusyAction] = useState<'read' | 'unread' | 'delete' | null>(null)
   const bulkBusy = bulkBusyAction !== null
   // Result of the last bulk action, shown above the list (the reading pane may be empty).
   const [bulkNote, setBulkNote] = useState('')
@@ -402,9 +402,6 @@ export default function MailApp({ clients, windowMode = false }: { clients: Mail
   // People for the search box (suggestions and part-name matching): saved in
   // this browser, loaded once the list shows and refreshed now and then.
   const [searchSenders, setSearchSenders] = useState<MailContact[]>([])
-  // Where the search looks (Everything / Name or address / Subject / Email text).
-  const [searchScope, setSearchScope] = useState<MailSearchScope>('all')
-  const searchScopeRef = useRef<MailSearchScope>('all')
   const searchPeople = useRef<{ account: string; promise: Promise<SearchPeople> } | null>(null)
   // Extra person addresses for the current search (see searchSenderAddresses).
   const querySenders = useRef<string[]>([])
@@ -423,7 +420,8 @@ export default function MailApp({ clients, windowMode = false }: { clients: Mail
   const [threadError, setThreadError] = useState('')
   const [actionNote, setActionNote] = useState('')
   // The last thread moved to the Bin, offered for Undo above the list.
-  const [lastDeleted, setLastDeleted] = useState<{ thread: ThreadRow; folder: MailFolder } | null>(null)
+  // The email(s) the last delete moved to the Bin, for Undo.
+  const [lastDeleted, setLastDeleted] = useState<{ threads: ThreadRow[]; folder: MailFolder } | null>(null)
   // Message whose .eml is being downloaded, so its button shows progress.
   const [emlDownloading, setEmlDownloading] = useState<string | null>(null)
 
@@ -489,7 +487,6 @@ export default function MailApp({ clients, windowMode = false }: { clients: Mail
         if (opts.q && querySenders.current.length > 0) {
           params.set('senders', querySenders.current.join(','))
         }
-        if (opts.q && searchScopeRef.current !== 'all') params.set('scope', searchScopeRef.current)
         if (opts.folder === 'inbox' && tagRef.current) params.set('tag', tagRef.current.id)
         const data = await api<{
           threads: ThreadRow[]
@@ -518,6 +515,10 @@ export default function MailApp({ clients, windowMode = false }: { clients: Mail
             fresh.push(row)
           }
           const next = opts.append ? [...current, ...fresh] : fresh
+          // A search lists the closest matches first; otherwise the Inbox puts unread on top.
+          if (opts.q?.trim()) {
+            return rankMailSearchResults(next, opts.q, { folder: opts.folder, matchedAddresses: querySenders.current })
+          }
           return opts.folder === 'inbox' ? unreadFirst(next) : next
         })
         setNextPageToken(data.nextPageToken)
@@ -593,16 +594,16 @@ export default function MailApp({ clients, windowMode = false }: { clients: Mail
   }, [])
 
   /**
-   * Runs the search box. Part of a name or address ("rebe") also lists mail
-   * from (Inbox) or to (Sent, Drafts) the people it matches, since Gmail only
-   * matches whole words; not when searching only the subject or text.
+   * Runs the search box across the person, subject and text at once. Part of
+   * a name or address ("rebe") also lists mail from (Inbox) or to (Sent,
+   * Drafts) the people it matches, since Gmail only matches whole words.
    */
   const runSearch = useCallback(
     async (value: string) => {
       const typed = value.trim()
       querySenders.current = []
       setQuery(value)
-      if (!typed || (searchScopeRef.current !== 'all' && searchScopeRef.current !== 'person')) {
+      if (!typed) {
         void loadInbox({ folder, q: value })
         return
       }
@@ -1775,6 +1776,43 @@ export default function MailApp({ clients, windowMode = false }: { clients: Mail
   }
 
   /**
+   * Move every ticked inbox row to Gmail's Bin, in chunks the route accepts.
+   * Like the row delete, not asked first: Undo above the list brings them back.
+   */
+  async function deleteChecked() {
+    const rows = checkedRows
+    if (bulkBusy || rows.length === 0) return
+    const fromFolder = folder
+    setBulkBusyAction('delete')
+    setBulkNote('')
+    setLastDeleted(null)
+    const done = new Set<string>()
+    try {
+      for (let i = 0; i < rows.length; i += MODIFY_THREADS_PER_REQUEST) {
+        const chunk = rows.slice(i, i + MODIFY_THREADS_PER_REQUEST).map((row) => row.threadId)
+        await api('/api/mail/modify', { method: 'POST', body: JSON.stringify({ threadIds: chunk, action: 'trash' }) })
+        for (const id of chunk) done.add(id)
+      }
+    } catch (err) {
+      setBulkNote(`${(err as Error).message}${done.size ? ` (${done.size} deleted before it stopped)` : ''}`)
+    } finally {
+      if (done.size > 0) {
+        setThreads((current) => current.filter((row) => !done.has(row.threadId)))
+        setCheckedThreads((current) => new Set([...current].filter((id) => !done.has(id))))
+        if (selectedThreadId && done.has(selectedThreadId)) {
+          threadRequest.current++
+          setSelectedThreadId(null)
+          setMessages([])
+          setComposer(null)
+        }
+        setLastDeleted({ threads: rows.filter((row) => done.has(row.threadId)), folder: fromFolder })
+        void loadCounts()
+      }
+      setBulkBusyAction(null)
+    }
+  }
+
+  /**
    * Move a thread to Gmail's Bin (recoverable for 30 days; Undo puts it back).
    * Not asked first: Undo is offered above the list instead.
    */
@@ -1795,7 +1833,7 @@ export default function MailApp({ clients, windowMode = false }: { clients: Mail
         setMessages([])
         setComposer(null)
       }
-      setLastDeleted({ thread, folder: fromFolder })
+      setLastDeleted({ threads: [thread], folder: fromFolder })
       void loadCounts()
     } catch (err) {
       showError(err)
@@ -1807,7 +1845,15 @@ export default function MailApp({ clients, windowMode = false }: { clients: Mail
     if (!deleted) return
     setLastDeleted(null)
     try {
-      await api('/api/mail/modify', { method: 'POST', body: JSON.stringify({ threadId: deleted.thread.threadId, action: 'untrash' }) })
+      const ids = deleted.threads.map((row) => row.threadId)
+      if (ids.length === 1) {
+        await api('/api/mail/modify', { method: 'POST', body: JSON.stringify({ threadId: ids[0], action: 'untrash' }) })
+      } else {
+        for (let i = 0; i < ids.length; i += MODIFY_THREADS_PER_REQUEST) {
+          const chunk = ids.slice(i, i + MODIFY_THREADS_PER_REQUEST)
+          await api('/api/mail/modify', { method: 'POST', body: JSON.stringify({ threadIds: chunk, action: 'untrash' }) })
+        }
+      }
       if (folder === deleted.folder && !panelOpen) void loadInbox({ folder, q: query })
       void loadCounts()
     } catch (err) {
@@ -1817,12 +1863,12 @@ export default function MailApp({ clients, windowMode = false }: { clients: Mail
 
   /** Single-email window: bring the deleted email back and show it again. */
   async function undoDeleteInWindow() {
-    const deleted = lastDeleted
-    if (!deleted) return
+    const thread = lastDeleted?.threads[0]
+    if (!thread) return
     setLastDeleted(null)
     try {
-      await api('/api/mail/modify', { method: 'POST', body: JSON.stringify({ threadId: deleted.thread.threadId, action: 'untrash' }) })
-      void openThread(deleted.thread)
+      await api('/api/mail/modify', { method: 'POST', body: JSON.stringify({ threadId: thread.threadId, action: 'untrash' }) })
+      void openThread(thread)
     } catch (err) {
       showError(err)
     }
@@ -2285,12 +2331,6 @@ export default function MailApp({ clients, windowMode = false }: { clients: Mail
           }}
           senders={searchSenders}
           onWantSenders={() => void loadSearchPeople()}
-          scope={searchScope}
-          onScopeChange={(next) => {
-            searchScopeRef.current = next
-            setSearchScope(next)
-            if (search.trim()) void runSearch(search)
-          }}
           label={tagView ? `Search tag ${tagView.name}` : `Search ${FOLDER_LABELS[folder].toLowerCase()}`}
         />
         {folder === 'inbox' && tagView ? (
@@ -2304,11 +2344,23 @@ export default function MailApp({ clients, windowMode = false }: { clients: Mail
         {folder === 'inbox' && checkedRows.length > 0 ? (
           <div className={styles.bulkBar} role="toolbar" aria-label="Selected emails">
             <span className={styles.bulkCount}>{checkedRows.length} selected</span>
-            <button type="button" className={`${styles.btn} ${styles.primary}`} onClick={() => void markChecked('read')} disabled={bulkBusy}>
+            <button type="button" className={`${styles.btn} ${styles.bulkBtn} ${styles.primary}`} onClick={() => void markChecked('read')} disabled={bulkBusy}>
               {bulkBusyAction === 'read' ? 'Marking read…' : 'Mark as read'}
             </button>
-            <button type="button" className={styles.btn} onClick={() => void markChecked('unread')} disabled={bulkBusy}>
+            <button type="button" className={`${styles.btn} ${styles.bulkBtn}`} onClick={() => void markChecked('unread')} disabled={bulkBusy}>
               {bulkBusyAction === 'unread' ? 'Marking unread…' : 'Mark as unread'}
+            </button>
+            <button
+              type="button"
+              className={`${styles.btn} ${styles.bulkBtn} ${styles.bulkDelete}`}
+              onClick={() => void deleteChecked()}
+              disabled={bulkBusy}
+              title="Moves the selected emails to Gmail’s Bin"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 11v6M14 11v6" />
+              </svg>
+              {bulkBusyAction === 'delete' ? 'Deleting…' : 'Delete'}
             </button>
             <button type="button" className={styles.linkBtn} onClick={() => setCheckedThreads(new Set())} disabled={bulkBusy}>
               Clear
@@ -2316,7 +2368,11 @@ export default function MailApp({ clients, windowMode = false }: { clients: Mail
           </div>
         ) : lastDeleted && lastDeleted.folder === folder ? (
           <div className={styles.bulkBar} role="status">
-            <span className={styles.bulkCount}>Deleted “{lastDeleted.thread.subject || '(no subject)'}”. It stays in Gmail’s Bin for 30 days.</span>
+            <span className={styles.bulkCount}>
+              {lastDeleted.threads.length === 1
+                ? `Deleted “${lastDeleted.threads[0]?.subject || '(no subject)'}”. It stays in Gmail’s Bin for 30 days.`
+                : `Deleted ${lastDeleted.threads.length} emails. They stay in Gmail’s Bin for 30 days.`}
+            </span>
             <button type="button" className={styles.linkBtn} onClick={() => void undoDelete()}>
               Undo
             </button>
@@ -2338,9 +2394,6 @@ export default function MailApp({ clients, windowMode = false }: { clients: Mail
             >
               {allLoadedChecked ? 'Unselect all' : 'Select all'}
             </button>
-            <span className={styles.muted}>
-              {threads.length} email{threads.length === 1 ? '' : 's'} shown{nextPageToken ? ' (more below Load more)' : ''}
-            </span>
           </div>
         ) : null}
         <ul className={styles.list} aria-label={tagView && folder === 'inbox' ? `Tag ${tagView.name}` : FOLDER_LABELS[folder]}>
@@ -2467,7 +2520,7 @@ export default function MailApp({ clients, windowMode = false }: { clients: Mail
           ) : !selectedThreadId && windowMode ? (
             lastDeleted ? (
               <div className={styles.empty}>
-                <p>Deleted “{lastDeleted.thread.subject || '(no subject)'}”. It stays in Gmail’s Bin for 30 days.</p>
+                <p>Deleted “{lastDeleted.threads[0]?.subject || '(no subject)'}”. It stays in Gmail’s Bin for 30 days.</p>
                 <button type="button" className={styles.btn} onClick={() => void undoDeleteInWindow()}>
                   Undo
                 </button>{' '}

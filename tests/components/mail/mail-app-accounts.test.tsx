@@ -147,6 +147,40 @@ describe('MailApp layout', () => {
     expect(rows.filter((row) => row?.className.includes('unread'))).toHaveLength(2)
   })
 
+  it('ticking inbox emails offers Delete, which bins them all at once, with Undo', async () => {
+    const baseFetch = global.fetch
+    const rows = [
+      { ...thread, threadId: 't1', subject: 'First' },
+      { ...thread, threadId: 't2', messageId: 'm2', subject: 'Second' },
+      { ...thread, threadId: 't3', messageId: 'm3', subject: 'Third' },
+    ]
+    global.fetch = vi.fn(async (url: string, init?: RequestInit) => {
+      if (url.startsWith('/api/mail/inbox')) {
+        calls.push({ url, init })
+        return { ok: true, json: async () => ({ threads: rows, nextPageToken: null, account: 'me@od.com', senderClients: [] }) } as Response
+      }
+      return baseFetch(url, init)
+    }) as unknown as typeof fetch
+    render(<MailApp clients={CLIENTS} />)
+    await screen.findByText('First')
+    expect(screen.queryByText(/emails? shown/)).toBeNull()
+    fireEvent.click(screen.getByRole('checkbox', { name: /First/ }))
+    fireEvent.click(screen.getByRole('checkbox', { name: /Third/ }))
+    calls = []
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+    await screen.findByText('Deleted 2 emails. They stay in Gmail’s Bin for 30 days.')
+    const modify = calls.filter((call) => call.url === '/api/mail/modify')
+    expect(modify).toHaveLength(1)
+    expect(JSON.parse(String(modify[0]?.init?.body))).toEqual({ threadIds: ['t1', 't3'], action: 'trash' })
+    expect(screen.queryByText('First')).toBeNull()
+    expect(screen.getByText('Second')).toBeTruthy()
+    calls = []
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
+    await waitFor(() => expect(calls.some((call) => call.url === '/api/mail/modify')).toBe(true))
+    const undo = calls.filter((call) => call.url === '/api/mail/modify')
+    expect(JSON.parse(String(undo[0]?.init?.body))).toEqual({ threadIds: ['t1', 't3'], action: 'untrash' })
+  })
+
   it('a row delete icon moves the thread to the Bin, with Undo bringing it back', async () => {
     render(<MailApp clients={CLIENTS} />)
     await screen.findByText('Hello there')
@@ -304,21 +338,32 @@ describe('MailApp layout', () => {
     expect(searches()).toHaveLength(1)
   })
 
-  it('searches only the subject when Search in is Subject, without person matches or suggestions', async () => {
+  it('has no Search in picker: one search looks at the person, subject and text, closest match first', async () => {
+    const baseFetch = global.fetch
+    const results = [
+      { ...thread, threadId: 't1', subject: 'Notes from Rebekah', from: 'Sam <sam@x.com>' },
+      { ...thread, threadId: 't2', messageId: 'm2', subject: 'Catch up', from: 'Rebekah Sadler <rebekah@inthepicture.com.au>' },
+    ]
     render(<MailApp clients={CLIENTS} />)
     await screen.findByText('Hello there')
+    expect(screen.queryByRole('combobox', { name: 'Search in' })).toBeNull()
+    global.fetch = vi.fn(async (url: string, init?: RequestInit) => {
+      if (url.startsWith('/api/mail/inbox')) {
+        calls.push({ url, init })
+        return { ok: true, json: async () => ({ threads: results, nextPageToken: null, account: 'me@od.com', senderClients: [] }) } as Response
+      }
+      return baseFetch(url, init)
+    }) as unknown as typeof fetch
     const search = screen.getByRole('combobox', { name: 'Search inbox' })
-    fireEvent.change(search, { target: { value: 'inthe' } })
+    fireEvent.change(search, { target: { value: 'rebekah' } })
     calls = []
-    fireEvent.change(screen.getByRole('combobox', { name: 'Search in' }), { target: { value: 'subject' } })
-    const searches = () => calls.filter((call) => call.url.startsWith('/api/mail/inbox')).map((call) => new URL(call.url, 'https://cms.test'))
-    await waitFor(() => expect(searches()).toHaveLength(1))
-    expect(searches()[0]?.searchParams.get('q')).toBe('inthe')
-    expect(searches()[0]?.searchParams.get('scope')).toBe('subject')
-    expect(searches()[0]?.searchParams.get('senders')).toBeNull()
-    fireEvent.focus(search)
-    fireEvent.change(search, { target: { value: 'rebe' } })
-    expect(screen.queryByRole('option', { name: /Rebekah Sadler/ })).toBeNull()
+    fireEvent.submit(search.closest('form') as HTMLFormElement)
+    await screen.findByText('Catch up')
+    const searches = calls.filter((call) => call.url.startsWith('/api/mail/inbox')).map((call) => new URL(call.url, 'https://cms.test'))
+    expect(searches[0]?.searchParams.get('scope')).toBeNull()
+    // The sender match ranks above the subject match.
+    const subjects = screen.getAllByRole('listitem').map((li) => li.textContent ?? '')
+    expect(subjects.findIndex((t) => t.includes('Catch up'))).toBeLessThan(subjects.findIndex((t) => t.includes('Notes from Rebekah')))
   })
 
   it('suggests people you email as well as regular senders, from an @ and a domain', async () => {
