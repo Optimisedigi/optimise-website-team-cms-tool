@@ -1,5 +1,7 @@
 import type { Payload } from 'payload'
-import { cmsMailThreadPath } from './drafts'
+import { cmsMailThreadPath, MAIL_THREAD_QUERY_PARAM } from './drafts'
+import { MAIL_ACCOUNT_QUERY_PARAM } from './accounts-shared'
+import type { ThreadReplyHeader } from './gmail-mail'
 
 /**
  * "Client email – please read" alerts.
@@ -27,6 +29,10 @@ import { cmsMailThreadPath } from './drafts'
  *
  * The email itself is still stored on the client's timeline in every case;
  * these rules only decide whether the bell lights up.
+ *
+ * Once the email is read, its alert is deleted: straight away when it is
+ * opened or marked read in Mail (removeClientEmailAlertsForThreads), and on the
+ * next alert sync when it was read in Gmail itself (removeAlertsForReadEmails).
  */
 
 export const CLIENT_EMAIL_ALERT_KIND = 'client-email-received'
@@ -80,6 +86,93 @@ export function isFreshEmail(date: string, now: Date): boolean {
 
 export function alertUrl(input: Pick<ClientEmailAlertInput, 'gmailThreadId' | 'account'>): string {
   return cmsMailThreadPath(input.gmailThreadId, input.account)
+}
+
+/** Alerts checked against Gmail per sync; the newest ones first. */
+export const MAX_ALERTS_RECONCILED = 50
+
+/**
+ * Delete the owner's alerts for these threads, e.g. after they were marked
+ * read in Mail. `account` is the extra Gmail account the threads are in ("" or
+ * omitted = main Gmail). Returns the number of alerts removed.
+ */
+export async function removeClientEmailAlertsForThreads(
+  payload: Pick<Payload, 'delete'>,
+  ownerId: number,
+  threadIds: readonly string[],
+  account?: string | null,
+): Promise<number> {
+  const urls = [...new Set(threadIds.filter(Boolean).map((id) => cmsMailThreadPath(id, account || null)))]
+  if (urls.length === 0) return 0
+  const res = await payload.delete({
+    collection: 'notifications',
+    where: {
+      and: [
+        { recipient: { equals: ownerId } },
+        { kind: { equals: CLIENT_EMAIL_ALERT_KIND } },
+        { url: { in: urls } },
+      ],
+    },
+    overrideAccess: true,
+  } as never)
+  return (res as { docs?: unknown[] }).docs?.length ?? 0
+}
+
+/** Thread id from a main-Gmail alert URL (`/admin/mail?thread=…`), or null. */
+export function alertThreadId(url: string | null | undefined): string | null {
+  if (!url) return null
+  try {
+    const parsed = new URL(url, 'https://cms.local')
+    if (parsed.pathname !== '/admin/mail' || parsed.searchParams.has(MAIL_ACCOUNT_QUERY_PARAM)) return null
+    return parsed.searchParams.get(MAIL_THREAD_QUERY_PARAM) || null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Delete the owner's alerts whose email has been read in Gmail (no message in
+ * the thread still carries UNREAD) or deleted from Gmail. Only main-Gmail
+ * alerts are checked, matching where alerts are raised. A Gmail error on one
+ * thread leaves that alert alone. Returns the number of alerts removed.
+ */
+export async function removeAlertsForReadEmails(
+  payload: Pick<Payload, 'find' | 'delete'>,
+  ownerId: number,
+  accessToken: string,
+  deps: { getThreadHeaders: (accessToken: string, threadId: string) => Promise<ThreadReplyHeader[]> },
+): Promise<number> {
+  const res = await payload.find({
+    collection: 'notifications',
+    where: {
+      and: [
+        { recipient: { equals: ownerId } },
+        { kind: { equals: CLIENT_EMAIL_ALERT_KIND } },
+      ],
+    },
+    sort: '-createdAt',
+    limit: MAX_ALERTS_RECONCILED,
+    depth: 0,
+    overrideAccess: true,
+    select: { url: true },
+  } as never)
+  const threadIds = [
+    ...new Set(
+      ((res as { docs: Array<{ url?: string | null }> }).docs)
+        .map((doc) => alertThreadId(doc.url))
+        .filter((id): id is string => Boolean(id)),
+    ),
+  ]
+  const read: string[] = []
+  for (const threadId of threadIds) {
+    try {
+      const messages = await deps.getThreadHeaders(accessToken, threadId)
+      if (!messages.some((message) => message.labelIds.includes('UNREAD'))) read.push(threadId)
+    } catch {
+      // Can't tell right now; check again on the next sync.
+    }
+  }
+  return read.length > 0 ? removeClientEmailAlertsForThreads(payload, ownerId, read) : 0
 }
 
 /**

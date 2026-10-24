@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { mapLimited, modifyThreadLabels, trashThread } from "@/lib/mail/gmail-mail";
 import { gmailErrorResponse, parseGmailId, readJson, requireGmailToken, requireMailUser } from "@/lib/mail/route-helpers";
+import { removeClientEmailAlertsForThreads } from "@/lib/mail/client-email-alerts";
 
 /**
  * POST /api/mail/modify
@@ -12,6 +13,9 @@ import { gmailErrorResponse, parseGmailId, readJson, requireGmailToken, requireM
  * (Gmail empties it after 30 days) and untrash brings it back (the Undo);
  * nothing is deleted outright. Bulk never archives. Requires the
  * gmail.modify scope.
+ *
+ * Marking threads read also removes their "Client email – please read"
+ * notifications from the bell.
  */
 const CHANGES = {
   archive: { remove: ["INBOX"] },
@@ -71,9 +75,19 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       add: "add" in change ? [...change.add] : [],
       remove: "remove" in change ? [...change.remove] : [],
     };
+    const ids = threadIds ?? [threadId as string];
     // Gmail has no batch call for threads: a few at a time stays under its rate limit.
-    await mapLimited(threadIds ?? [threadId as string], 5, (id) => modifyThreadLabels(token.accessToken, id, labels));
-    return NextResponse.json({ ok: true });
+    await mapLimited(ids, 5, (id) => modifyThreadLabels(token.accessToken, id, labels));
+    let alertsRemoved = 0;
+    if (action === "read") {
+      try {
+        alertsRemoved = await removeClientEmailAlertsForThreads(ctx.payload, ctx.user.id, ids, token.account);
+      } catch (err) {
+        // Gmail already changed; a stale bell alert must not fail the request.
+        console.error("[mail-modify] could not remove read client email alerts:", (err instanceof Error ? err.message : String(err)).slice(0, 200));
+      }
+    }
+    return NextResponse.json({ ok: true, alertsRemoved });
   } catch (err) {
     return gmailErrorResponse(err, bulk ? `Gmail could not mark those emails ${action}.` : "Gmail could not update that thread.");
   }

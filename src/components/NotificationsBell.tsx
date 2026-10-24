@@ -8,6 +8,7 @@ import RocketSplash from "./RocketSplash";
 import ClientEmailAlert from "./ClientEmailAlert";
 import { openCmsMailLink } from "@/lib/mail/drafts";
 import { notificationCategory } from "@/lib/notification-categories";
+import { NOTIFICATIONS_CHANGED_EVENT } from "@/lib/notifications-events";
 import { useRouter } from "next/navigation";
 
 interface NotificationRow {
@@ -287,6 +288,20 @@ const NotificationsBell = (): ReactElement | null => {
       document.removeEventListener("visibilitychange", onVisible);
     };
   }, [user, loadList, countNonce]);
+
+  // Something else changed notifications (e.g. Mail marked emails read, which
+  // removes their client-email alerts): refresh the badge, and the list if open.
+  const openRef = useRef(open);
+  openRef.current = open;
+  useEffect(() => {
+    if (!user) return;
+    const onChanged = (): void => {
+      setCountNonce((n) => n + 1);
+      if (openRef.current) void loadList();
+    };
+    window.addEventListener(NOTIFICATIONS_CHANGED_EVENT, onChanged);
+    return () => window.removeEventListener(NOTIFICATIONS_CHANGED_EVENT, onChanged);
+  }, [user, loadList]);
 
   // Close on outside click and on Escape.
   useEffect(() => {

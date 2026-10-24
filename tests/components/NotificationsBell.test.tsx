@@ -7,6 +7,7 @@ vi.mock("@/components/RocketSplash", () => ({ default: () => null }));
 vi.mock("@/components/ClientEmailAlert", () => ({ default: () => null }));
 
 import NotificationsBell from "@/components/NotificationsBell";
+import { announceNotificationsChanged } from "@/lib/notifications-events";
 
 const originalFetch = globalThis.fetch;
 
@@ -93,5 +94,18 @@ describe("NotificationsBell list", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "All" }));
     expect(await screen.findByText("Note 1")).toBeTruthy();
+  });
+
+  it("refreshes straight away when Mail marks emails read", async () => {
+    const calls = stubFetch();
+    render(<NotificationsBell />);
+    fireEvent.click(await screen.findByRole("button", { name: "3 unread notifications" }));
+    await screen.findByText("Note 45");
+    const before = { count: calls.filter((c) => c.includes("unread-count")).length, list: calls.filter((c) => c.startsWith("/api/notifications?")).length };
+
+    announceNotificationsChanged();
+
+    await waitFor(() => expect(calls.filter((c) => c.includes("unread-count")).length).toBeGreaterThan(before.count));
+    await waitFor(() => expect(calls.filter((c) => c.startsWith("/api/notifications?")).length).toBeGreaterThan(before.list));
   });
 });

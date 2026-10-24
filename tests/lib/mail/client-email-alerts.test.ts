@@ -2,8 +2,11 @@ import { describe, expect, it, vi } from "vitest";
 import {
   CLIENT_EMAIL_ALERT_KIND,
   MAX_ALERTS_PER_SYNC,
+  alertThreadId,
   createClientEmailAlert,
   isFreshEmail,
+  removeAlertsForReadEmails,
+  removeClientEmailAlertsForThreads,
   senderLabel,
 } from "@/lib/mail/client-email-alerts";
 import { syncMailbox } from "@/lib/mail/store";
@@ -29,6 +32,12 @@ function fakePayload(clients: Row[]) {
   return {
     tables,
     find: vi.fn(async (args: any) => ({ docs: tables[args.collection]!.filter((row) => matches(row, args.where)) })),
+    delete: vi.fn(async (args: any) => {
+      const table = tables[args.collection]!;
+      const gone = table.filter((row) => matches(row, args.where));
+      tables[args.collection] = table.filter((row) => !gone.includes(row));
+      return { docs: gone };
+    }),
     create: vi.fn(async (args: any) => {
       const table = tables[args.collection]!;
       if (args.collection === "client-emails" && table.some((row) => row.gmailMessageId === args.data.gmailMessageId)) {
@@ -113,6 +122,49 @@ describe("createClientEmailAlert", () => {
     const payload = fakePayload([]);
     expect(await createClientEmailAlert(payload as never, alertInput({ date: "2026-10-01T00:00:00.000Z" }), NOW)).toBe(false);
     expect(payload.tables.notifications).toHaveLength(0);
+  });
+});
+
+describe("removing alerts once the email is read", () => {
+  const seed = (payload: ReturnType<typeof fakePayload>) => {
+    payload.tables.notifications.push(
+      { id: 1, recipient: 10, kind: CLIENT_EMAIL_ALERT_KIND, url: "/admin/mail?thread=read1" },
+      { id: 2, recipient: 10, kind: CLIENT_EMAIL_ALERT_KIND, url: "/admin/mail?thread=unread1" },
+      { id: 3, recipient: 10, kind: CLIENT_EMAIL_ALERT_KIND, url: "/admin/mail?thread=gone1" },
+      { id: 4, recipient: 11, kind: CLIENT_EMAIL_ALERT_KIND, url: "/admin/mail?thread=read1" },
+      { id: 5, recipient: 10, kind: "team-task-mention", url: "/admin/mail?thread=read1" },
+      { id: 6, recipient: 10, kind: CLIENT_EMAIL_ALERT_KIND, url: "/admin/mail?thread=broken1" },
+    );
+  };
+  const ids = (payload: ReturnType<typeof fakePayload>) => payload.tables.notifications.map((n) => n.id);
+
+  it("reads the thread id from main-Gmail alert links only", () => {
+    expect(alertThreadId("/admin/mail?thread=abc123")).toBe("abc123");
+    expect(alertThreadId("/admin/mail?thread=abc123&account=sales%40od.com")).toBeNull();
+    expect(alertThreadId("/admin/collections/clients/4")).toBeNull();
+    expect(alertThreadId(null)).toBeNull();
+  });
+
+  it("deletes only the owner's client email alerts for the given threads", async () => {
+    const payload = fakePayload([]);
+    seed(payload);
+    expect(await removeClientEmailAlertsForThreads(payload as never, 10, ["read1"])).toBe(1);
+    expect(ids(payload)).toEqual([2, 3, 4, 5, 6]);
+    expect(await removeClientEmailAlertsForThreads(payload as never, 10, [])).toBe(0);
+  });
+
+  it("removes alerts whose email was read or deleted in Gmail, and keeps unread ones", async () => {
+    const payload = fakePayload([]);
+    seed(payload);
+    const header = (labelIds: string[]) => ({ messageId: "m", from: "", internalDate: 0, labelIds });
+    const getThreadHeaders = vi.fn(async (_token: string, threadId: string) => {
+      if (threadId === "unread1") return [header(["INBOX"]), header(["INBOX", "UNREAD"])];
+      if (threadId === "gone1") return [];
+      if (threadId === "broken1") throw new Error("Gmail 500");
+      return [header(["INBOX"])];
+    });
+    expect(await removeAlertsForReadEmails(payload as never, 10, "tok", { getThreadHeaders })).toBe(2);
+    expect(ids(payload)).toEqual([2, 4, 5, 6]);
   });
 });
 

@@ -3,6 +3,7 @@ import { NextRequest } from 'next/server'
 
 const modifyThreadLabels = vi.fn(async (_token: string, _id: string, _change: unknown) => undefined)
 const trashThread = vi.fn(async (_token: string, _id: string, _restore?: boolean) => undefined)
+const deleteRows = vi.fn(async (_args: unknown) => ({ docs: [{ id: 1 }] }))
 
 vi.mock('@/lib/mail/gmail-mail', async (importOriginal) => ({
   mapLimited: (await importOriginal<typeof import('@/lib/mail/gmail-mail')>()).mapLimited,
@@ -12,8 +13,8 @@ vi.mock('@/lib/mail/gmail-mail', async (importOriginal) => ({
 vi.mock('@/lib/mail/route-helpers', async (importOriginal) => ({
   parseGmailId: (await importOriginal<typeof import('@/lib/mail/route-helpers')>()).parseGmailId,
   readJson: async (req: NextRequest) => req.json(),
-  requireMailUser: vi.fn(async () => ({ payload: {}, user: { id: 1 } })),
-  requireGmailToken: vi.fn(async () => ({ accessToken: 'tok', email: 'me@od.com', userEmail: 'me@od.com' })),
+  requireMailUser: vi.fn(async () => ({ payload: { delete: deleteRows }, user: { id: 1 } })),
+  requireGmailToken: vi.fn(async () => ({ accessToken: 'tok', email: 'me@od.com', userEmail: 'me@od.com', account: '' })),
   gmailErrorResponse: vi.fn(() => new Response(JSON.stringify({ error: 'gmail' }), { status: 502 })),
 }))
 
@@ -32,6 +33,36 @@ describe('POST /api/mail/modify', () => {
       ['t1', { add: [], remove: ['UNREAD'] }],
       ['t2', { add: [], remove: ['UNREAD'] }],
     ])
+  })
+
+  it('removes the client email notifications for threads marked read', async () => {
+    const res = await POST(post({ threadIds: ['t1', 't2'], action: 'read' }))
+    expect(await res.json()).toEqual({ ok: true, alertsRemoved: 1 })
+    expect(deleteRows).toHaveBeenCalledWith(expect.objectContaining({
+      collection: 'notifications',
+      where: {
+        and: [
+          { recipient: { equals: 1 } },
+          { kind: { equals: 'client-email-received' } },
+          { url: { in: ['/admin/mail?thread=t1', '/admin/mail?thread=t2'] } },
+        ],
+      },
+    }))
+  })
+
+  it('still succeeds when the notification cleanup fails', async () => {
+    deleteRows.mockRejectedValueOnce(new Error('db down'))
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const res = await POST(post({ threadId: 't1', action: 'read' }))
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ ok: true, alertsRemoved: 0 })
+    spy.mockRestore()
+  })
+
+  it('leaves notifications alone for unread and archive', async () => {
+    await POST(post({ threadIds: ['t1'], action: 'unread' }))
+    await POST(post({ threadId: 't1', action: 'archive' }))
+    expect(deleteRows).not.toHaveBeenCalled()
   })
 
   it('marks several threads unread at once', async () => {

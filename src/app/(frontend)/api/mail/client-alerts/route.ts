@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getValidGmailToken } from "@/lib/agents/_shared/user-gmail-tokens";
-import { CLIENT_EMAIL_ALERT_KIND } from "@/lib/mail/client-email-alerts";
+import { CLIENT_EMAIL_ALERT_KIND, removeAlertsForReadEmails } from "@/lib/mail/client-email-alerts";
+import { getThreadReplyHeaders } from "@/lib/mail/gmail-mail";
 import { syncMailbox } from "@/lib/mail/store";
 import { requireMailUser } from "@/lib/mail/route-helpers";
 
@@ -13,7 +14,8 @@ import { requireMailUser } from "@/lib/mail/route-helpers";
  *
  * With `sync=1` it first runs the normal incremental Mail sync for the
  * user's own mailbox, at most once per SYNC_MIN_INTERVAL_MS (shared across
- * tabs via mail-sync-states.lastSyncAt). Sync problems never fail the
+ * tabs via mail-sync-states.lastSyncAt). The same pass removes alerts whose
+ * email has since been read in Gmail itself. Sync problems never fail the
  * request: the panel still gets whatever alerts already exist.
  * Plain code only: no model calls.
  */
@@ -50,6 +52,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         if (token.ok) {
           await syncMailbox({ payload, userId: user.id, accessToken: token.accessToken, userEmail: token.userEmail });
           synced = true;
+          await removeAlertsForReadEmails(payload, user.id, token.accessToken, { getThreadHeaders: getThreadReplyHeaders });
         }
       }
     } catch (err) {

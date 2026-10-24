@@ -48,6 +48,7 @@ import {
 import { forwardStartHtml, forwardSubject, hasOtherParticipants, replyRecipients } from '../../lib/mail/reply-actions'
 import { exportFileName, messageToMarkdown, saveFile, threadToMarkdown } from '../../lib/mail/export'
 import type { MailTag } from '../../lib/mail/tags'
+import { announceNotificationsChanged } from '../../lib/notifications-events'
 
 /** People in the user's mail, from /api/mail/contacts. */
 interface SearchPeople {
@@ -861,7 +862,10 @@ export default function MailApp({ clients, windowMode = false }: { clients: Mail
         if (thread.unread) {
           setThreads((current) => current.map((row) => (row.threadId === thread.threadId ? { ...row, unread: false } : row)))
           api('/api/mail/modify', { method: 'POST', body: JSON.stringify({ threadId: thread.threadId, action: 'read' }) })
-            .then(() => loadCounts())
+            .then(() => {
+              announceNotificationsChanged()
+              return loadCounts()
+            })
             .catch((err) => setActionNote((err as Error).message))
         }
       } catch (err) {
@@ -1457,6 +1461,7 @@ export default function MailApp({ clients, windowMode = false }: { clients: Mail
         for (const id of chunk) done.add(id)
       }
       setBulkNote(`Marked ${done.size} email${done.size === 1 ? '' : 's'} ${action}`)
+      if (action === 'read') announceNotificationsChanged()
     } catch (err) {
       setBulkNote(`${(err as Error).message}${done.size ? ` (${done.size} marked ${action} before it stopped)` : ''}`)
     } finally {
@@ -1485,6 +1490,7 @@ export default function MailApp({ clients, windowMode = false }: { clients: Mail
           current.map((row) => (row.threadId === selectedThreadId ? { ...row, unread: action === 'unread' } : row)),
         )
         setActionNote(action === 'unread' ? 'Marked unread' : 'Marked read')
+        if (action === 'read') announceNotificationsChanged()
       }
       void loadCounts()
     } catch (err) {
