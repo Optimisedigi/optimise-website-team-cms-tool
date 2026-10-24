@@ -122,7 +122,7 @@ describe("notification text", () => {
     const body = notificationBody(fresh);
     expect(body).toContain("Unauthenticated Remote Code Execution");
     expect(body).toContain("+2 more");
-    expect(body).toContain("update Next.js across my-projects");
+    expect(body).toContain("/live-security-update next");
     for (const a of fresh) expect(body).toContain(a.ghsaId);
   });
 });

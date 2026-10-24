@@ -134,7 +134,7 @@ export function notificationBody(advisories: NextAdvisory[]): string {
   const more = advisories.length > 1 ? ` +${advisories.length - 1} more` : "";
   return (
     `${top.summary}${more}. ` +
-    "Ask GG Coder to verify and update Next.js across my-projects, then redeploy. " +
+    "Run /live-security-update next in GG Coder on my-projects. " +
     `Advisories: ${advisories.map((a) => a.ghsaId).join(", ")}`
   );
 }

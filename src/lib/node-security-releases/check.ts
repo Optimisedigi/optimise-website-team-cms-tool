@@ -5,7 +5,7 @@
  * GitHub (hardcoded hosts, no credentials, never a caller-supplied URL) and
  * raises one bell notification per admin when a supported Node.js line gets a
  * new security release. The notification tells the team to run the
- * `/node-security-update` command across ~/my-projects.
+ * `/live-security-update node` command across the live apps in ~/my-projects.
  *
  * No collection of its own: the notification title names every version it
  * covers, and a version already named in an earlier `node-security-release`
@@ -110,8 +110,8 @@ export function notificationBody(releases: NodeSecurityRelease[]): string {
   const date = releases.map((r) => r.date).sort().at(-1);
   return (
     `New Node.js security fixes${date ? ` (${date})` : ""}. ` +
-    "Run /node-security-update in GG Coder on my-projects, then update your Mac " +
-    "(brew upgrade node, nvm install) and redeploy."
+    "Run /live-security-update node in GG Coder on my-projects, then update your Mac " +
+    "(brew upgrade node, nvm install)."
   );
 }
 

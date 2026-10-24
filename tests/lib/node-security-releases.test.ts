@@ -80,7 +80,7 @@ describe("runNodeSecurityReleasesCron", () => {
     const data = (payload.create.mock.calls[0] as unknown as [{ data: Record<string, string> }])[0].data;
     expect(data.kind).toBe("node-security-release");
     expect(data.title).toBe("Node.js security release: 26.12.1, 24.22.1, 22.23.4");
-    expect(data.body).toContain("/node-security-update");
+    expect(data.body).toContain("/live-security-update node");
     expect(data.url).toBe("https://nodejs.org/en/blog/release/v26.12.1");
   });
 
