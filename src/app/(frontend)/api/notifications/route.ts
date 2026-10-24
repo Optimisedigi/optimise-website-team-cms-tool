@@ -5,11 +5,14 @@ import config from "@/payload.config";
 /**
  * GET /api/notifications
  *
- * Returns the logged-in user's notifications, newest first. Default page
- * size 20; pass `?limit=N&page=M` to paginate.
+ * Returns the logged-in user's notifications, newest first (ties broken by
+ * id). Default page size 20.
  *
- * The bell dropdown only ever needs the top ~10 unread; this endpoint
- * powers that as well as any future full notifications page.
+ *  - `?unreadOnly=true` returns unread rows only.
+ *  - `?beforeCreatedAt=<ISO>&beforeId=<id>` returns the rows after that one
+ *    (keyset paging, used by the bell's infinite scroll). Unlike `page`, it
+ *    never skips or repeats a row when rows are read or added in between.
+ *  - `?page=M` still works for simple offset paging.
  */
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const cfg = await config;
@@ -24,11 +27,20 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const limit = Math.min(parseInt(url.searchParams.get("limit") || "20", 10), 100);
   const page = Math.max(parseInt(url.searchParams.get("page") || "1", 10), 1);
   const unreadOnly = url.searchParams.get("unreadOnly") === "true";
+  const cursor = parseCursor(url.searchParams.get("beforeCreatedAt"), url.searchParams.get("beforeId"));
 
   const where: Record<string, unknown> = {
     and: [
       { recipient: { equals: user.id } },
       ...(unreadOnly ? [{ readAt: { exists: false } }] : []),
+      ...(cursor
+        ? [{
+            or: [
+              { createdAt: { less_than: cursor.createdAt } },
+              { and: [{ createdAt: { equals: cursor.createdAt } }, { id: { less_than: cursor.id } }] },
+            ],
+          }]
+        : []),
     ],
   };
 
@@ -37,8 +49,8 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       collection: "notifications" as never,
       where: where as never,
       limit,
-      page,
-      sort: "-createdAt",
+      page: cursor ? 1 : page,
+      sort: ["-createdAt", "-id"],
       overrideAccess: true,
       depth: 0,
       select: {
@@ -65,7 +77,17 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   return NextResponse.json({
     docs,
     totalDocs,
-    page,
+    page: cursor ? 1 : page,
     totalPages,
+    hasNextPage: docs.length > 0 && totalDocs > (cursor ? docs.length : (page - 1) * limit + docs.length),
   });
+}
+
+/** A valid keyset cursor, or null when either part is missing or malformed. */
+function parseCursor(createdAt: string | null, id: string | null): { createdAt: string; id: number } | null {
+  if (!createdAt || !id) return null;
+  const time = new Date(createdAt);
+  const numericId = Number(id);
+  if (Number.isNaN(time.getTime()) || !Number.isInteger(numericId)) return null;
+  return { createdAt: time.toISOString(), id: numericId };
 }

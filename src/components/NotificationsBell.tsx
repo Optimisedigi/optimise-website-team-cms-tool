@@ -21,6 +21,18 @@ interface NotificationRow {
 }
 
 const POLL_INTERVAL_MS = 60_000;
+/** Rows fetched per page; more load as the list scrolls to the bottom. */
+const PAGE_SIZE = 20;
+/** Start loading the next page this many pixels before the bottom. */
+const LOAD_MORE_THRESHOLD_PX = 160;
+
+type NotificationFilter = "all" | "unread";
+
+interface NotificationPage {
+  docs?: NotificationRow[];
+  hasNextPage?: boolean;
+  error?: string;
+}
 const SHAKE_DURATION_MS = 1400;
 
 // Inject the shake + glow keyframes once. Payload's admin shell has no
@@ -60,7 +72,8 @@ function useBellAnimations(): void {
  * Admin top-bar notifications bell.
  *
  * Polls `/api/notifications/unread-count` every 60s. Clicking the bell
- * fetches the 20 most recent notifications (newest first, read rows included).
+ * fetches the newest notifications (read rows included, or unread only with
+ * the Unread filter), 20 at a time; scrolling to the bottom loads the next 20.
  * Clicking a notification marks it read and navigates to its `url`.
  *
  * Lives next to `UserDisplayName` in the `admin.components.actions` slot.
@@ -97,29 +110,122 @@ const NotificationsBell = (): ReactElement | null => {
 
   useBellAnimations();
 
-  // Load the dropdown contents. Declared before the polling effect so the
-  // auto-open path can call it.
-  const loadList = useCallback(async () => {
+  const [filter, setFilter] = useState<NotificationFilter>("all");
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [loadMoreError, setLoadMoreError] = useState<string | null>(null);
+  // Refs mirror the paging state so scroll handlers never act on stale values,
+  // and a request counter drops responses from a list that has since reset.
+  const filterRef = useRef<NotificationFilter>("all");
+  const hasMoreRef = useRef(false);
+  const loadingMoreRef = useRef(false);
+  const requestRef = useRef(0);
+  // Latest rows, for the next-page cursor (state can be a render behind).
+  const itemsRef = useRef<NotificationRow[]>([]);
+  const listRef = useRef<HTMLDivElement>(null);
+
+  // `after` is the last row already shown; the API returns the rows after it.
+  const fetchPage = useCallback(async (which: NotificationFilter, after?: NotificationRow): Promise<NotificationPage & { ok: boolean; status: number }> => {
+    const params = new URLSearchParams({ limit: String(PAGE_SIZE) });
+    if (which === "unread") params.set("unreadOnly", "true");
+    if (after) {
+      params.set("beforeCreatedAt", after.createdAt);
+      params.set("beforeId", String(after.id));
+    }
+    const res = await fetch(`/api/notifications?${params.toString()}`, { credentials: "include" });
+    const data = (await res.json().catch(() => null)) as NotificationPage | null;
+    return { ...(data ?? {}), ok: res.ok, status: res.status };
+  }, []);
+
+  // Load the first page of the dropdown. Declared before the polling effect so
+  // the auto-open path can call it. Defaults to the current filter.
+  const loadList = useCallback(async (which: NotificationFilter = filterRef.current) => {
+    const request = ++requestRef.current;
+    filterRef.current = which;
+    hasMoreRef.current = false;
+    loadingMoreRef.current = false;
+    setHasMore(false);
+    setLoadingMore(false);
+    setLoadMoreError(null);
     setLoading(true);
     try {
-      const res = await fetch("/api/notifications?limit=20", {
-        credentials: "include",
-      });
-      const data = (await res.json().catch(() => null)) as { docs?: NotificationRow[]; error?: string } | null;
-      if (!res.ok) {
-        setError(data?.error || `Failed to load notifications (${res.status})`);
+      const data = await fetchPage(which);
+      if (request !== requestRef.current) return;
+      if (!data.ok) {
+        setError(data.error || `Failed to load notifications (${data.status})`);
+        itemsRef.current = [];
         setItems([]);
         return;
       }
       setError(null);
-      setItems(data?.docs || []);
+      itemsRef.current = data.docs || [];
+      setItems(itemsRef.current);
+      hasMoreRef.current = Boolean(data.hasNextPage);
+      setHasMore(hasMoreRef.current);
     } catch (err) {
+      if (request !== requestRef.current) return;
       setError(err instanceof Error ? err.message : "Failed to load notifications");
+      itemsRef.current = [];
       setItems([]);
     } finally {
-      setLoading(false);
+      if (request === requestRef.current) setLoading(false);
     }
-  }, []);
+  }, [fetchPage]);
+
+  // Append the rows after the last one shown (keyset paging, so reading or
+  // receiving notifications meanwhile never skips or repeats a row).
+  const loadMore = useCallback(async () => {
+    if (loadingMoreRef.current || !hasMoreRef.current) return;
+    const last = itemsRef.current[itemsRef.current.length - 1];
+    if (!last) return;
+    const request = requestRef.current;
+    loadingMoreRef.current = true;
+    setLoadingMore(true);
+    setLoadMoreError(null);
+    try {
+      const data = await fetchPage(filterRef.current, last);
+      if (request !== requestRef.current) return;
+      if (!data.ok) {
+        setLoadMoreError(data.error || `Couldn't load more (${data.status})`);
+        return;
+      }
+      const docs = data.docs || [];
+      const seen = new Set(itemsRef.current.map((row) => String(row.id)));
+      itemsRef.current = [...itemsRef.current, ...docs.filter((row) => !seen.has(String(row.id)))];
+      setItems(itemsRef.current);
+      hasMoreRef.current = Boolean(data.hasNextPage);
+      setHasMore(hasMoreRef.current);
+    } catch (err) {
+      if (request !== requestRef.current) return;
+      setLoadMoreError(err instanceof Error ? err.message : "Couldn't load more");
+    } finally {
+      if (request === requestRef.current) {
+        loadingMoreRef.current = false;
+        setLoadingMore(false);
+      }
+    }
+  }, [fetchPage]);
+
+  const onListScroll = (): void => {
+    const el = listRef.current;
+    if (!el) return;
+    if (el.scrollTop + el.clientHeight >= el.scrollHeight - LOAD_MORE_THRESHOLD_PX) void loadMore();
+  };
+
+  // A first page that doesn't fill the panel can't be scrolled, so keep
+  // loading until it does (or there's nothing left).
+  useEffect(() => {
+    if (!open || loading || loadingMore || !hasMore || loadMoreError) return;
+    const el = listRef.current;
+    if (el && el.scrollHeight <= el.clientHeight + LOAD_MORE_THRESHOLD_PX) void loadMore();
+  }, [open, loading, loadingMore, hasMore, loadMoreError, items, loadMore]);
+
+  const onFilterChange = (next: NotificationFilter): void => {
+    if (next === filterRef.current && !error) return;
+    setFilter(next);
+    listRef.current?.scrollTo?.({ top: 0 });
+    void loadList(next);
+  };
 
   // Bumped when a client email drops down, so the count refreshes straight away.
   const [countNonce, setCountNonce] = useState(0);
@@ -268,6 +374,46 @@ const NotificationsBell = (): ReactElement | null => {
   };
 
   if (!user) return null;
+
+  // All / Unread switch. Sits beside "Mark all read" on desktop; phones give it
+  // its own row so the header still fits next to the close button.
+  const filterToggle = (
+    <span
+      role="group"
+      aria-label="Show"
+      style={{
+        display: "inline-flex",
+        border: "1px solid var(--theme-elevation-150, #ddd)",
+        borderRadius: 999,
+        overflow: "hidden",
+      }}
+    >
+      {(["all", "unread"] as const).map((value) => {
+        const active = filter === value;
+        return (
+          <button
+            key={value}
+            type="button"
+            aria-pressed={active}
+            onClick={() => onFilterChange(value)}
+            style={{
+              border: "none",
+              cursor: "pointer",
+              fontSize: isMobile ? 14 : 12,
+              fontWeight: 600,
+              padding: isMobile ? "0 12px" : "3px 10px",
+              minHeight: isMobile ? 36 : undefined,
+              whiteSpace: "nowrap",
+              background: active ? "#1a73e8" : "transparent",
+              color: active ? "#fff" : "var(--theme-elevation-700, #444)",
+            }}
+          >
+            {value === "all" ? "All" : `Unread${unreadCount > 0 ? ` (${unreadCount})` : ""}`}
+          </button>
+        );
+      })}
+    </span>
+  );
 
   return (
     <div ref={ref} style={{ position: "relative" }}>
@@ -420,7 +566,8 @@ const NotificationsBell = (): ReactElement | null => {
             }}
           >
             <span style={{ fontSize: isMobile ? 16 : undefined }}>Notifications</span>
-            <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <span style={{ display: "flex", alignItems: "center", gap: isMobile ? 4 : 12 }}>
+              {!isMobile && filterToggle}
               {unreadCount > 0 && (
                 <button
                   type="button"
@@ -434,6 +581,7 @@ const NotificationsBell = (): ReactElement | null => {
                     color: "#1a73e8",
                     padding: isMobile ? "0 10px" : 0,
                     minHeight: isMobile ? 44 : undefined,
+                    whiteSpace: "nowrap",
                   }}
                 >
                   Mark all read
@@ -452,7 +600,17 @@ const NotificationsBell = (): ReactElement | null => {
             </span>
           </div>
 
-          <div style={{ maxHeight: isMobile ? undefined : "min(680px, calc(100dvh - 140px))", flex: isMobile ? "1 1 auto" : undefined, overflowY: "auto", overscrollBehavior: "contain" }}>
+          {isMobile && (
+            <div style={{ flex: "0 0 auto", padding: "8px 16px", borderBottom: "1px solid var(--theme-elevation-100, #eee)" }}>
+              {filterToggle}
+            </div>
+          )}
+          <div
+            ref={listRef}
+            data-testid="notifications-list"
+            onScroll={onListScroll}
+            style={{ maxHeight: isMobile ? undefined : "min(680px, calc(100dvh - 140px))", flex: isMobile ? "1 1 auto" : undefined, overflowY: "auto", overscrollBehavior: "contain" }}
+          >
             {loading && (
               <div style={{ padding: 16, fontSize: 13, color: "var(--theme-elevation-500)" }}>
                 Loading…
@@ -465,7 +623,7 @@ const NotificationsBell = (): ReactElement | null => {
             )}
             {!loading && !error && items.length === 0 && (
               <div style={{ padding: 16, fontSize: 13, color: "var(--theme-elevation-500)" }}>
-                No notifications.
+                {filter === "unread" ? "No unread notifications." : "No notifications."}
               </div>
             )}
             {!loading &&
@@ -627,6 +785,37 @@ const NotificationsBell = (): ReactElement | null => {
                   </div>
                 );
               })}
+            {!loading && !error && items.length > 0 && (
+              <div
+                aria-live="polite"
+                style={{ padding: "10px 14px", fontSize: 12, textAlign: "center", color: "var(--theme-elevation-500, #888)" }}
+              >
+                {loadingMore ? (
+                  "Loading more…"
+                ) : loadMoreError ? (
+                  <>
+                    {loadMoreError}{" "}
+                    <button
+                      type="button"
+                      onClick={() => void loadMore()}
+                      style={{ border: "none", background: "none", color: "#1a73e8", fontWeight: 600, cursor: "pointer", fontSize: 12, padding: 0 }}
+                    >
+                      Try again
+                    </button>
+                  </>
+                ) : hasMore ? (
+                  <button
+                    type="button"
+                    onClick={() => void loadMore()}
+                    style={{ border: "none", background: "none", color: "#1a73e8", fontWeight: 600, cursor: "pointer", fontSize: 12, padding: isMobile ? "8px 12px" : 0 }}
+                  >
+                    Load more
+                  </button>
+                ) : (
+                  `That's everything${filter === "unread" ? " unread" : ""}.`
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}
