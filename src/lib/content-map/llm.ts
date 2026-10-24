@@ -2,7 +2,9 @@
  * Content Map's model access. Runs on the CMS's subscription (OAuth) models
  * so link edits and Write next ideas never bill an API key by default:
  *
- *   OptiMate settings → "Content Map model" (explicit choice, used first)
+ *   OptiMate settings → "Content Map model" (explicit choice, used first, but
+ *   only when that model also runs on a subscription login; API-key models are
+ *   ignored)
  *   then Kimi K3 (Kimi OAuth) → Claude Sonnet (only when Claude OAuth is
  *   connected; otherwise the resolver would use ANTHROPIC_API_KEY) → Grok
  *   (SuperGrok OAuth) → GPT via Codex (ChatGPT OAuth).
@@ -41,8 +43,23 @@ export async function contentMapModelChain(
     const cred = await credential(provider).catch(() => null);
     if (cred && cred.kind === "oauth") chain.push(model);
   }
+  // The OptiMate "Content Map model" setting is honoured only when it runs on a
+  // subscription login too (an OAuth-only provider, or a stored OAuth
+  // credential). An API-key model picked there is ignored, so Content Map never
+  // bills an API key.
   const chosen = settings.contentMapModel;
-  return chosen ? [chosen, ...chain.filter((m) => m !== chosen)] : chain;
+  if (!chosen || !MODEL_REGISTRY[chosen]) return chain;
+  const chosenProvider = MODEL_REGISTRY[chosen].provider;
+  let chosenIsOAuth = OAUTH_ONLY_PROVIDERS.has(chosenProvider);
+  if (!chosenIsOAuth) {
+    const cred = await credential(chosenProvider).catch(() => null);
+    chosenIsOAuth = Boolean(cred && cred.kind === "oauth");
+  }
+  if (!chosenIsOAuth) {
+    console.warn(`[content-map] ignoring Content Map model "${chosen}": it isn't on a subscription (OAuth) login`);
+    return chain;
+  }
+  return [chosen, ...chain.filter((m) => m !== chosen)];
 }
 
 export interface ContentMapLlmResult {

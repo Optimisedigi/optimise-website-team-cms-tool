@@ -17,17 +17,20 @@ export default function RocketSplash({
   onLight = false,
   compact = false,
   whiteRocket = false,
+  label = 'Loading',
 }: {
   onLight?: boolean
   compact?: boolean
   whiteRocket?: boolean
+  /** Text under the rocket (and its accessible name). Defaults to "Loading". */
+  label?: string
 }) {
   return (
     <div
       className={`od-splash${onLight ? ' od-splash--light' : ''}${compact ? ' od-splash--compact' : ''}`}
       role="status"
       aria-live="polite"
-      aria-label="Loading"
+      aria-label={label}
     >
       <div className="od-splash__scene">
         <div className="od-splash__flames">
@@ -45,7 +48,7 @@ export default function RocketSplash({
           />
         </div>
       </div>
-      <div className="od-splash__text">Loading</div>
+      <div className="od-splash__text">{label}</div>
     </div>
   )
 }

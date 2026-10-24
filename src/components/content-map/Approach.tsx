@@ -27,7 +27,10 @@ interface Props {
 }
 
 const PRIORITY_COLOUR: Record<SnapshotRecommendation["priority"], string> = { high: RED, medium: "oklch(0.62 0.14 62)", low: MUTED };
-const CARD = "border:1px solid oklch(0.92 0.006 85);background:oklch(0.995 0.002 85);border-radius:11px;padding:14px;display:flex;flex-direction:column;gap:10px";
+const CARD = "border:1px solid oklch(0.92 0.006 85);background:oklch(0.995 0.002 85);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:6px;min-width:0";
+// Compact topic cards: one line of stats instead of a row of tiles.
+const STAT = "font-size:11.5px;color:oklch(0.52 0.01 85);white-space:nowrap";
+const STAT_NUM = "font:600 12px 'JetBrains Mono',monospace;color:oklch(0.24 0.012 85)";
 const TILE = "padding:10px;border-radius:8px;background:oklch(0.97 0.005 85);display:flex;flex-direction:column;gap:2px";
 const TILE_NUM = "font:600 17px 'JetBrains Mono',monospace";
 const TILE_LABEL = "font-size:11.5px;color:oklch(0.52 0.01 85)";
@@ -88,6 +91,7 @@ export function Approach({ model, snapshot, clientName, authorities, recs, sent,
 
         <div style={st("display:flex;flex-direction:column;gap:10px")}>
           <div style={st(MONO_LABEL)}>Topics we're building · {built.length}</div>
+          <div style={st("display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:8px")}>
           {built.map((t) => {
             const o = T[t.k];
             if (!o) return null;
@@ -95,32 +99,30 @@ export function Approach({ model, snapshot, clientName, authorities, recs, sent,
             const cite = citations?.byTopic[t.k];
             const cov = Math.round((o.cov || 0) * 100);
             const tr = research?.topics[t.k];
-            const tiles = 4 + (cite ? 1 : 0) + (tr?.volume ? 1 : 0);
             const description = t.description || describe.get(t.k) || "";
             return (
-              <button type="button" key={t.k} data-testid="approach-topic" className="ccm-hbg" onClick={() => onOpenTopic(t.k)} style={st(`${CARD};cursor:pointer;text-align:left;width:100%`)}>
-                <div style={st("display:flex;align-items:center;gap:8px;width:100%")}>
-                  <span style={st(`width:10px;height:10px;border-radius:50%;flex:none;background:${t.c}`)} />
-                  <span style={st("font-size:15px;font-weight:600;flex:1")}>{t.name}</span>
+              <button type="button" key={t.k} data-testid="approach-topic" className="ccm-hbg" title={description || undefined} onClick={() => onOpenTopic(t.k)} style={st(`${CARD};cursor:pointer;text-align:left;width:100%`)}>
+                <div style={st("display:flex;align-items:center;gap:8px;width:100%;min-width:0")}>
+                  <span style={st(`width:9px;height:9px;border-radius:50%;flex:none;background:${t.c}`)} />
+                  <span style={st("font-size:14px;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>{t.name}</span>
                   {t.primary ? <MonoTag>PRIMARY</MonoTag> : null}
                 </div>
-                {description ? <div style={st(`${BODY};padding-left:18px`)}>{description}</div> : null}
-                <div style={st(`display:grid;grid-template-columns:repeat(${tiles},minmax(0,1fr));gap:8px;width:100%`)}>
-                  <div style={st(TILE)}><span style={st(TILE_NUM)}>{o.pages}</span><span style={st(TILE_LABEL)}>pages</span></div>
-                  <div style={st(TILE)}><span style={st(TILE_NUM)}>{o.intra}</span><span style={st(TILE_LABEL)}>links within</span></div>
-                  <div style={st(TILE)}><span style={st(TILE_NUM)}>{cov}%</span><span style={st(TILE_LABEL)}>peer-linked</span></div>
-                  <div style={st(TILE)}><span style={st(TILE_NUM)}>{planned}</span><span style={st(TILE_LABEL)}>articles planned</span></div>
-                  {tr?.volume ? <div data-testid="approach-demand" style={st(TILE)}><span style={st(TILE_NUM)}>{fmtVolume(tr.volume)}</span><span style={st(TILE_LABEL)}>Searches/mo</span></div> : null}
-                  {cite ? <div style={st(TILE)}><span style={st(`${TILE_NUM};color:${cite.cited ? GREEN : RED}`)}>{cite.cited}<span style={st("font-size:12px;color:oklch(0.52 0.01 85);font-weight:500")}>/{cite.checks}</span></span><span style={st(TILE_LABEL)}>AI citations</span></div> : null}
+                {description ? <div style={st(`${BODY};font-size:12px;line-height:1.4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;width:100%`)}>{description}</div> : null}
+                <div style={st("display:flex;flex-wrap:wrap;gap:3px 12px;width:100%")}>
+                  <span style={st(STAT)}><b style={st(STAT_NUM)}>{o.pages}</b> pages</span>
+                  <span style={st(STAT)}><b style={st(STAT_NUM)}>{o.intra}</b> links within</span>
+                  <span style={st(STAT)}><b style={st(STAT_NUM)}>{planned}</b> planned</span>
+                  {tr?.volume ? <span data-testid="approach-demand" style={st(STAT)}><b style={st(STAT_NUM)}>{fmtVolume(tr.volume)}</b> searches/mo · {Math.round(tr.covered * 100)}% covered</span> : null}
+                  {cite ? <span style={st(STAT)}><b style={st(`${STAT_NUM};color:${cite.cited ? GREEN : RED}`)}>{cite.cited}/{cite.checks}</b> AI citations</span> : null}
                 </div>
-                <div style={st("display:flex;align-items:center;gap:8px;width:100%")}>
-                  <div style={st("flex:1;height:4px;border-radius:2px;background:oklch(0.92 0.006 85);overflow:hidden")}><div style={st(`height:100%;border-radius:2px;width:${cov}%;background:${t.c}`)} /></div>
-                  <span style={st("font:11px 'JetBrains Mono',monospace;color:oklch(0.52 0.01 85);min-width:32px;text-align:right")}>{cov}%</span>
+                <div style={st("display:flex;align-items:center;gap:8px;width:100%")} title={`${cov}% of pages get a link from a page in the same topic`}>
+                  <div style={st("flex:1;height:3px;border-radius:2px;background:oklch(0.92 0.006 85);overflow:hidden")}><div style={st(`height:100%;border-radius:2px;width:${cov}%;background:${t.c}`)} /></div>
+                  <span style={st("font:10.5px 'JetBrains Mono',monospace;color:oklch(0.52 0.01 85);white-space:nowrap")}>{cov}% peer-linked</span>
                 </div>
-                {tr?.volume ? <div style={st("font-size:12px;color:oklch(0.52 0.01 85)")}>{isClient ? "You cover" : "The site covers"} {Math.round(tr.covered * 100)}% of the demand</div> : null}
               </button>
             );
           })}
+          </div>
         </div>
 
         <div style={st("display:flex;flex-direction:column;gap:10px;max-width:760px")}>

@@ -42,23 +42,28 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       if (next.ok) refreshRunId = String(next.run.runId ?? "");
     }
     // GT ran without an LLM: write the Write next ideas with the CMS's
-    // subscription models once the push has been acknowledged. Then (ideas
-    // written or skipped) the weekly AI citation check, when the last one is
-    // ≥ 6 days old — it tracks the fresh ideas' questions.
+    // subscription models once the push has been acknowledged. In parallel,
+    // Search Console (≥ 6 days) and monthly research (≥ 28 days) start right
+    // away: research doesn't need the ideas. The weekly AI citation check
+    // (≥ 6 days) waits for the ideas, because it tracks their questions.
     const completed = out.doc.status === "completed";
     const ideasPending = completed && needsIdeas(out.snapshot);
     if (completed) {
       const doc = out.doc;
-      const job = async () => {
+      const ideasThenCitations = async () => {
         if (ideasPending) {
           const res = await refreshIdeas(payload, doc).catch((err: Error) => ({ ok: false as const, error: err.message }));
           if (!res.ok) console.warn("[content-map] ideas after ingest failed:", res.error);
         }
         const cit = await maybeStartWeeklyCitations(payload, clientId).catch((err: Error) => ({ ok: false as const, error: err.message, status: 500 }));
         if (cit && !cit.ok) console.warn("[content-map] weekly citation run not started:", cit.error);
-        // Then Search Console (≥ 6 days) and monthly research (≥ 28 days); placement once per new data.
+      };
+      const research = async () => {
         const rs = await runResearchSchedule(payload, clientId).catch((err: Error) => { console.warn("[content-map] research schedule failed:", err.message); return null; });
         if (rs?.research && !rs.research.ok) console.warn("[content-map] monthly research not started:", rs.research.error);
+      };
+      const job = async () => {
+        await Promise.all([ideasThenCitations(), research()]);
       };
       try {
         after(job);

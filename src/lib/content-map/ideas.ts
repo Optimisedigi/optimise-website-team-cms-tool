@@ -15,7 +15,7 @@ type Doc = Record<string, unknown>;
 
 const MAX_PER_TOPIC = 5;
 const MAX_TOPICS = 8;
-const CONCURRENCY = 3;
+const CONCURRENCY = 4;
 const PRIORITY_BASE = { high: 0.9, medium: 0.65, low: 0.4 } as const;
 
 const str = (v: unknown, max = 600) => (typeof v === "string" ? v.trim().slice(0, max) : "");

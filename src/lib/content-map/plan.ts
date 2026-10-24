@@ -29,6 +29,12 @@ export interface CitationInsights {
   /** Per existing plan item id whose question was tracked. */
   notes: Record<string, { questionId: string; cover: string[]; beat: string[] }>;
   topicsFailed: number;
+  /** Topic keys finished (incremental save). Absent on older rows. */
+  topicsDone?: string[];
+  /** false while topics are still missing; absent (older rows) = complete. */
+  complete?: boolean;
+  /** When the latest insights job started (self-heal de-duplication). */
+  insightsStartedAt?: string;
 }
 
 export function parseCitationsResult(value: unknown): CitationsResult | null {

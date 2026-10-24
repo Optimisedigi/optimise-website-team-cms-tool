@@ -42,7 +42,9 @@ export const CITATION_REUSE_MS = 60 * 60 * 1000;
 export const CITATION_POLL_AFTER_MS = 3 * 60 * 1000;
 export const WEEKLY_MIN_AGE_MS = 6 * 24 * 60 * 60 * 1000;
 const MAX_QUESTIONS = 64;
-const CONCURRENCY = 3;
+const CONCURRENCY = 4;
+/** Self-heal waits this long after the run finished / the last insights job started. */
+export const CITATION_INSIGHTS_HEAL_AFTER_MS = 6 * 60 * 1000;
 
 const str = (v: unknown, max = 600) => (typeof v === "string" ? v.trim().slice(0, max) : "");
 const strList = (v: unknown, maxItems: number, maxLen = 240) => (Array.isArray(v) ? v.map((x) => str(x, maxLen)).filter(Boolean).slice(0, maxItems) : []);
@@ -216,7 +218,29 @@ export async function applyCitationRetention(payload: Payload, clientId: string)
 }
 
 export function needsInsights(doc: Doc | null | undefined): boolean {
-  return Boolean(doc && doc.status === "completed" && doc.result && !doc.insights);
+  if (!doc || doc.status !== "completed" || !doc.result) return false;
+  const insights = parseInsights(doc.insights);
+  return !insights || insights.complete === false;
+}
+
+/** Missing/partial insights, run finished ≥ 6 min ago and no insights job started in the last 6 min. */
+export function citationInsightsStalled(doc: Doc | null | undefined, now: number): boolean {
+  if (!needsInsights(doc) || !doc) return false;
+  const at = Date.parse(String(doc.generatedAt ?? ""));
+  if (Number.isFinite(at) && now - at < CITATION_INSIGHTS_HEAL_AFTER_MS) return false;
+  const started = Date.parse(parseInsights(doc.insights)?.insightsStartedAt ?? "");
+  return !(Number.isFinite(started) && now - started < CITATION_INSIGHTS_HEAL_AFTER_MS);
+}
+
+/** Self-heal: stamp insightsStartedAt (no double start within 6 min), then resume the missing topics. */
+export async function healCitationInsights(payload: Payload, doc: Doc | null | undefined, deps: { call?: Call; now?: () => number } = {}): Promise<boolean> {
+  const now = deps.now ?? Date.now;
+  if (!doc || !citationInsightsStalled(doc, now())) return false;
+  const stamp = new Date(now()).toISOString();
+  const marked: CitationInsights = { ...(parseInsights(doc.insights) ?? { model: "", generatedAt: "", gaps: [], refresh: [], notes: {}, topicsFailed: 0, topicsDone: [], complete: false }), insightsStartedAt: stamp };
+  const updated = (await payload.update({ collection: "content-map-citations", id: doc.id as number, data: { insights: marked } as never, overrideAccess: true })) as unknown as Doc;
+  scheduleInsights(payload, updated, deps);
+  return true;
 }
 
 /** Run insights after the response (request scope) or detached (scripts/tests). */
@@ -304,11 +328,15 @@ Reply with JSON only:
   return { system, user };
 }
 
-/** Write insights for a completed run with the subscription models (per topic). */
+/**
+ * Write insights for a completed run with the subscription models (per topic,
+ * 4 in flight). Each finished topic is saved straight away (complete: false),
+ * so a timeout keeps what's done; a later run only calls the missing topics.
+ */
 export async function writeInsights(
   payload: Payload,
   doc: Doc,
-  deps: { call?: Call; now?: () => number } = {},
+  deps: { call?: Call; now?: () => number; concurrency?: number } = {},
 ): Promise<{ ok: true; insights: CitationInsights } | { ok: false; error: string }> {
   const result = parseCitationsResult(doc.result);
   if (!result) return { ok: false, error: "The citation run has no usable result" };
@@ -329,13 +357,39 @@ export async function writeInsights(
     }
     if (open.length) tasks.push({ topic, open });
   }
-  const insights: CitationInsights = { model: "", generatedAt: new Date((deps.now ?? Date.now)()).toISOString(), gaps: [], refresh: [], notes: {}, topicsFailed: 0 };
+  const now = deps.now ?? Date.now;
+  const fresh = await payload.findByID({ collection: "content-map-citations", id: doc.id as number, depth: 0, overrideAccess: true }).then((d) => d as unknown as Doc).catch(() => doc);
+  const stored = parseInsights(fresh.insights);
+  const resume = stored && stored.complete === false ? stored : null;
+  const done = new Set(resume?.topicsDone ?? []);
+  const insights: CitationInsights = {
+    model: resume?.model ?? "",
+    generatedAt: new Date(now()).toISOString(),
+    gaps: [...(resume?.gaps ?? [])],
+    refresh: [...(resume?.refresh ?? [])],
+    notes: { ...(resume?.notes ?? {}) },
+    topicsFailed: 0,
+    topicsDone: tasks.map((t) => t.topic.key).filter((k) => done.has(k)),
+    complete: false,
+    insightsStartedAt: new Date(now()).toISOString(),
+  };
+  const todo = tasks.filter((t) => !done.has(t.topic.key));
+  // Saves are chained so concurrent topics never write out of order.
+  let saving: Promise<unknown> = Promise.resolve();
+  const save = () => {
+    const snapshotOf: CitationInsights = { ...insights, generatedAt: new Date(now()).toISOString(), gaps: [...insights.gaps], refresh: [...insights.refresh], notes: { ...insights.notes }, topicsDone: tasks.map((t) => t.topic.key).filter((k) => done.has(k)) };
+    saving = saving.then(() => payload.update({ collection: "content-map-citations", id: doc.id as number, data: { insights: snapshotOf } as never, overrideAccess: true })).catch((err: Error) => {
+      console.warn("[content-map] citation insights save failed:", err.message);
+    });
+    return saving;
+  };
+  if (todo.length) await save();
   const nodeIds = new Set(pages.map((n) => n.id));
   const authorityKeys = new Set(authorities.map((a) => a.key));
   let next = 0;
   const worker = async () => {
-    while (next < tasks.length) {
-      const task = tasks[next++];
+    while (next < todo.length) {
+      const task = todo[next++];
       if (!task) break;
       const topicPages = pages.filter((n) => n.g === task.topic.key).sort((a, b) => b.in - a.in);
       const planned = basePlan.filter((p) => p.topic === task.topic.key).slice(0, 15);
@@ -346,7 +400,7 @@ export async function writeInsights(
           timeoutMs: 120_000,
         });
         const json = extractJson(res.text);
-        if (!isRecord(json)) { insights.topicsFailed++; continue; }
+        if (!isRecord(json)) { insights.topicsFailed++; await save(); continue; }
         insights.model ||= res.model;
         const byId = new Map(task.open.map((q) => [q.id, q]));
         for (const raw of Array.isArray(json.gaps) ? json.gaps : []) {
@@ -381,14 +435,20 @@ export async function writeInsights(
           if (!q || !planned.some((p) => p.id === planId)) continue;
           insights.notes[planId] = { questionId: q.id, cover: strList(raw.cover, 8), beat: strList(raw.beat, 6) };
         }
+        done.add(task.topic.key);
       } catch (err) {
         console.warn(`[content-map] citation insights for "${task.topic.name}" failed:`, (err as Error).message);
         insights.topicsFailed++;
       }
+      await save();
     }
   };
-  await Promise.all(Array.from({ length: Math.min(CONCURRENCY, tasks.length) }, worker));
+  await Promise.all(Array.from({ length: Math.min(deps.concurrency ?? CONCURRENCY, todo.length) }, worker));
+  await saving;
   insights.refresh.sort((a, b) => a.topic.localeCompare(b.topic) || a.id.localeCompare(b.id));
+  insights.topicsDone = tasks.map((t) => t.topic.key).filter((k) => done.has(k));
+  insights.complete = true;
+  insights.generatedAt = new Date(now()).toISOString();
   await payload.update({ collection: "content-map-citations", id: doc.id as number, data: { insights } as never, overrideAccess: true });
   return { ok: true, insights };
 }
@@ -469,6 +529,10 @@ export async function loadCitationState(payload: Payload, clientId: string, now:
     const polled = await pollStaleCitationRun(payload, latest, now);
     if (polled.status === "completed" && !done.some((d) => d.id === polled.id)) done = [polled, ...done].slice(0, RETAIN_CITATION_RUNS);
     latest = polled;
+  }
+  // Self-heal insights cut off by a timeout (resumes only the missing topics).
+  if (citationInsightsStalled(done[0], now())) {
+    await healCitationInsights(payload, done[0], { now }).catch((err: Error) => console.warn("[content-map] citation insights self-heal failed:", err.message));
   }
   return { latest, completed: done };
 }

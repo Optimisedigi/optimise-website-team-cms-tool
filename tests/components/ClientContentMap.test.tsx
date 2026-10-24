@@ -56,7 +56,9 @@ describe("ClientContentMap", () => {
     render(<ClientContentMap />);
     expect(await screen.findByText("Topic associations")).toBeInTheDocument();
     expect(await screen.findByText("How the topics connect")).toBeInTheDocument();
-    expect(screen.getByText(/Away Digital Teams · (Internal link map · )?22 Oct 2026/)).toBeInTheDocument();
+    // No eyebrow line above the title any more; the update date sits by the actions.
+    expect(screen.queryByText(/Internal link map/)).toBeNull();
+    expect(screen.getByRole("button", { name: "Re-analyse" })).toHaveAttribute("title", "Updated 22 Oct 2026");
     expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual(["Approach", "Map", "Gap matrix", "AI citations", "Link opportunities", "Write next"]);
     expect(screen.getByRole("tab", { name: "Map" })).toHaveAttribute("aria-selected", "true");
     fireEvent.click(screen.getByRole("tab", { name: "Approach" }));
@@ -136,8 +138,9 @@ describe("ClientContentMap", () => {
     const { container } = render(<ContentMapPage clientId="42" slug="away-digital-teams" audience="team" staff />);
     expect(await screen.findByText("How the topics connect")).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Open full page" })).toBeNull();
-    expect(screen.getByRole("link", { name: "Open client" })).toHaveAttribute("href", "/admin/collections/clients/42");
-    expect((container.querySelector(".ccm-root") as HTMLElement).style.height).toBe("100vh");
+    expect((container.querySelector(".ccm-root") as HTMLElement).style.height).toBe("calc(100vh - 40px)");
+    expect(screen.getByRole("img", { name: "Optimise Digital" })).toHaveAttribute("src", "/optimise-logo-animated.gif");
+    expect(screen.getByText("Managed by")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Client view" })).toHaveAttribute("href", "/SEO/Topic-association-linking/away-digital-teams?view=client");
   });
 
@@ -160,6 +163,28 @@ describe("ClientContentMap", () => {
     expect(screen.queryByRole("button", { name: "Send to Blog Prompter" })).toBeNull();
     expect(screen.queryByRole("button", { name: /Write ideas with AI|Rewrite ideas/ })).toBeNull();
     expect(screen.getByText("In progress")).toBeInTheDocument();
+  });
+
+  it("shows the CMS rocket while the first analysis runs, with the step it's on", async () => {
+    mockApi(apiResponse({ snapshot: null, run: { runId: "r1", status: "running", mode: "full", phase: "crawling", pagesCrawled: 42, error: null, startedAt: "2026-10-23T07:00:00.000Z" } as never }));
+    render(<ClientContentMap />);
+    const rocket = await screen.findByTestId("ccm-rocket");
+    expect(rocket).toHaveTextContent("Analysing the site");
+    expect(rocket).toHaveTextContent("Reading the site · 42 pages so far");
+    expect(screen.getByRole("status", { name: "Analysing the site" })).toBeInTheDocument();
+  });
+
+  it("shows the rocket the moment Analyse now is pressed", async () => {
+    let release: (v: Response) => void = () => {};
+    mockApi(apiResponse({ snapshot: null, run: null }));
+    const base = fetchMock.getMockImplementation()!;
+    fetchMock.mockImplementation((url: string, init?: RequestInit) =>
+      url === "/api/content-map/run" ? new Promise<Response>((r) => { release = r; }) : base(url, init));
+    render(<ClientContentMap />);
+    fireEvent.click(await screen.findByRole("button", { name: "Analyse now" }));
+    expect(await screen.findByTestId("ccm-rocket")).toHaveTextContent("Starting the analysis");
+    release(new Response(JSON.stringify({ run: { runId: "r2", status: "running", mode: "full", phase: "queued", pagesCrawled: 0, error: null, startedAt: null } }), { status: 200 }));
+    expect(await screen.findByText(/Waiting for a free slot to start/)).toBeInTheDocument();
   });
 
   it("explains how to switch analysis on", async () => {

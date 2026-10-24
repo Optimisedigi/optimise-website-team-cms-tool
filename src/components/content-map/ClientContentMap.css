@@ -5,3 +5,8 @@
 .ccm-root .ccm-hbg:hover { background: oklch(0.97 0.005 85) !important; }
 .ccm-root .ccm-hul:hover { text-decoration: underline; }
 .ccm-root .ccm-hcol:hover { color: oklch(0.45 0.13 255); }
+
+/* The CMS rocket loader inside the map: same flight (RocketSplash.css), map typography. */
+.ccm-root .od-splash { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; min-height: 0; }
+.ccm-root .od-splash__scene { --od-rise: 150px; height: 120px; }
+.ccm-root .od-splash__text { font: 500 13px 'Instrument Sans', sans-serif; letter-spacing: 0.3px; color: oklch(0.36 0.012 85); }

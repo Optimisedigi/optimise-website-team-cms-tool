@@ -386,16 +386,16 @@ Reply with JSON only:
     ...input.planned.slice(0, 20).map((t) => `- ${t}`),
     "",
     "Keywords (monthly searches):",
-    ...input.keywords.slice(0, 60).map((k) => `- ${k.keyword} (${k.volume ?? "?"})`),
+    ...input.keywords.slice(0, MAX_INPUT_KEYWORDS).map((k) => `- ${k.keyword} (${k.volume ?? "?"})`),
     "",
     input.questions.length ? "Questions people ask:" : "",
     ...input.questions.slice(0, 30).map((q) => `- ${q.question}`),
     "",
     input.competitors.length ? "Competitor pages (number | subject | headings):" : "",
-    ...input.competitors.slice(0, 10).map((p, i) => `${i}. ${p.title} | ${p.headings.slice(0, 10).join(" · ")}`),
+    ...input.competitors.slice(0, MAX_INPUT_COMPETITORS).map((p, i) => `${i}. ${p.title} | ${p.headings.slice(0, MAX_INPUT_HEADINGS).join(" · ")}`),
     "",
     input.gsc.length ? "Search Console queries without a good page (query | impressions | position):" : "",
-    ...input.gsc.slice(0, 20).map((g) => `- ${g.query} | ${g.impressions} | ${g.position}`),
+    ...input.gsc.slice(0, MAX_INPUT_GSC).map((g) => `- ${g.query} | ${g.impressions} | ${g.position}`),
     "",
     "Give up to 10 ideas, strongest demand first.",
   ].filter((l, i, a) => l !== "" || (i > 0 && a[i - 1] !== "")).join("\n");
@@ -575,25 +575,74 @@ async function suggestNewTopics(payload: Payload, clientId: string, ideas: reado
   return created;
 }
 
+/** Research insights topics run 4 at a time; each call gets 120 s (2 rounds of 8 topics fit Vercel's 300 s). */
+export const RESEARCH_INSIGHTS_CONCURRENCY = 4;
+export const RESEARCH_INSIGHTS_TIMEOUT_MS = 120_000;
+/** Self-heal waits this long after the run finished / the last job started before restarting missing topics. */
+export const INSIGHTS_HEAL_AFTER_MS = 6 * 60 * 1000;
+const MAX_INPUT_KEYWORDS = 40;
+const MAX_INPUT_QUESTIONS = 30;
+const MAX_INPUT_COMPETITORS = 6;
+const MAX_INPUT_HEADINGS = 8;
+const MAX_INPUT_GSC = 20;
+
 export function needsResearchInsights(doc: Doc | null | undefined, gscDoc: Doc | null): boolean {
   if (!doc || doc.status !== "completed" || !doc.result) return false;
   const insights = parseResearchInsights(doc.insights);
-  return !insights || insights.gscId !== (gscDoc ? String(gscDoc.id) : null);
+  return !insights || insights.complete === false || insights.gscId !== (gscDoc ? String(gscDoc.id) : null);
 }
 
-/** Group + place a completed research run's data with the subscription models (one call per topic). */
+/**
+ * Self-heal check: a completed run whose insights are missing or partial, the
+ * run finished ≥ 6 min ago and no insights job started in the last 6 min.
+ */
+export function researchInsightsStalled(doc: Doc | null | undefined, now: number): boolean {
+  if (!doc || doc.status !== "completed" || !doc.result) return false;
+  const insights = parseResearchInsights(doc.insights);
+  if (insights && insights.complete !== false) return false;
+  const at = Date.parse(String(doc.generatedAt ?? ""));
+  if (Number.isFinite(at) && now - at < INSIGHTS_HEAL_AFTER_MS) return false;
+  const started = Date.parse(insights?.insightsStartedAt ?? "");
+  return !(Number.isFinite(started) && now - started < INSIGHTS_HEAL_AFTER_MS);
+}
+
+/** Per-topic model input trimmed to what's useful (the prompt and evidence see the same lists). */
+export function trimResearchInput(input: TopicResearchInput): TopicResearchInput {
+  return {
+    ...input,
+    keywords: [...input.keywords].sort((a, b) => (b.volume ?? -1) - (a.volume ?? -1) || a.keyword.localeCompare(b.keyword)).slice(0, MAX_INPUT_KEYWORDS),
+    questions: input.questions.slice(0, MAX_INPUT_QUESTIONS),
+    competitors: input.competitors.slice(0, MAX_INPUT_COMPETITORS).map((p) => ({ ...p, headings: p.headings.slice(0, MAX_INPUT_HEADINGS) })),
+    gsc: input.gsc.slice(0, MAX_INPUT_GSC),
+  };
+}
+
+/**
+ * Group + place a completed research run's data with the subscription models
+ * (one call per topic, 4 in flight). Each finished topic is merged into the
+ * stored insights straight away (complete: false), so a function timeout keeps
+ * what's done; a later run (self-heal) only calls the missing topics. Final
+ * statuses, new-topic suggestions and in-progress placement run once every
+ * topic is in.
+ */
 export async function writeResearchInsights(
   payload: Payload,
   doc: Doc,
-  deps: { call?: Call; now?: () => number } = {},
+  deps: { call?: Call; now?: () => number; concurrency?: number } = {},
 ): Promise<{ ok: true; insights: ResearchInsights } | { ok: false; error: string }> {
   const result = parseResearchResult(doc.result);
   if (!result) return { ok: false, error: "The research run has no usable result" };
   const call = deps.call ?? callContentMapModel;
+  const now = deps.now ?? Date.now;
   const clientId = relId(doc.client);
   const client = (await payload.findByID({ collection: "clients", id: clientId, depth: 0, overrideAccess: true })) as unknown as Doc;
   const authorities = authoritiesFromClient(client);
-  const [snapDoc, suggestions, gscDoc] = await Promise.all([latestCompletedDoc(payload, clientId), loadSuggestions(payload, clientId), latestGsc(payload, clientId)]);
+  const [snapDoc, suggestions, gscDoc, fresh] = await Promise.all([
+    latestCompletedDoc(payload, clientId),
+    loadSuggestions(payload, clientId),
+    latestGsc(payload, clientId),
+    payload.findByID({ collection: "content-map-research", id: doc.id as number, depth: 0, overrideAccess: true }).then((d) => d as unknown as Doc).catch(() => doc),
+  ]);
   const snapshot = snapDoc ? parseSnapshot(snapDoc.data) : null;
   const ctx = placementContext(authorities, snapshot);
   const basePlan = buildPlan({ snapshot, suggestions, result: null, insights: null });
@@ -601,35 +650,91 @@ export async function writeResearchInsights(
   const signals = buildGscSignals(gscDoc, snapshot);
   const openGsc = signals.queries.filter((q) => q.kind !== "cannibal");
   const primary = authorities.find((a) => a.primary)?.key ?? authorities[0]?.key ?? null;
+  const gscId = gscDoc ? String(gscDoc.id) : null;
 
-  const drafts: DraftIdea[] = [];
-  let model = "";
-  let topicsFailed = 0;
+  // Resume a partial pass for the same Search Console pull; otherwise start over.
+  const stored = parseResearchInsights(fresh.insights);
+  const resume = stored && stored.complete === false && stored.gscId === gscId ? stored : null;
+  const prior = stored && stored.complete !== false ? stored : null;
+  const previousRun = prior ?? parseResearchInsights((await latestCompletedResearch(payload, clientId, 2)).find((d) => d.id !== doc.id)?.insights);
+
+  const tasks: Array<{ topic: TopicAuthorityInput; input: TopicResearchInput }> = [];
   for (const topic of authorities) {
     const t = result.topics.find((x) => x.key === topic.key);
-    const input: TopicResearchInput = {
+    const input = trimResearchInput({
       topic,
       keywords: t?.keywords ?? [],
       questions: t?.questions ?? [],
       competitors: (t?.competitors.pages ?? []).filter((p) => p.ok),
       gsc: openGsc.filter((q) => q.topic === topic.key || (q.topic === null && topic.key === primary)),
       planned: basePlan.filter((p) => p.topic === topic.key).map((p) => p.title),
-    };
+    });
     if (!input.keywords.length && !input.questions.length && !input.gsc.length) continue;
-    const terms = competitorTerms(input.competitors);
-    try {
-      const res = await call(payload, { ...buildResearchPrompt(ctx, input, result.siteUrl), maxTokens: 8000, timeoutMs: 150_000 });
-      const json = extractJson(res.text);
-      const parsed = parseResearchIdeas(json, ctx, input, terms);
-      if (!parsed.length) { topicsFailed++; continue; }
-      model ||= res.model;
-      for (const d of parsed) if (!drafts.some((x) => x.idea.id === d.idea.id)) drafts.push(d);
-    } catch (err) {
-      console.warn(`[content-map] research insights for "${topic.name}" failed:`, (err as Error).message);
-      topicsFailed++;
-    }
+    tasks.push({ topic, input });
   }
-  const previous = parseResearchInsights(doc.insights) ?? parseResearchInsights((await latestCompletedResearch(payload, clientId, 2)).find((d) => d.id !== doc.id)?.insights);
+
+  const done = new Set(resume?.topicsDone ?? []);
+  const failed = new Set<string>();
+  const drafts: DraftIdea[] = (resume?.ideas ?? []).map((idea) => ({ idea, brief: resume?.briefs[idea.id] ?? null }));
+  const dismissed = new Set([...(previousRun?.ideas ?? []), ...(resume?.ideas ?? [])].filter((i) => i.status === "dismissed").map((i) => normTitle(i.title)));
+  let model = resume?.model ?? "";
+  const startedAt = new Date(now()).toISOString();
+  const partial = (): ResearchInsights => {
+    const briefs: Record<string, SnapshotRecommendation> = {};
+    for (const d of drafts) if (d.brief) briefs[d.idea.id] = d.brief;
+    return {
+      model,
+      generatedAt: new Date(now()).toISOString(),
+      gscId,
+      ideas: drafts.map((d) => ({ ...d.idea, status: dismissed.has(normTitle(d.idea.title)) ? "dismissed" : "listed", planItemId: null })),
+      briefs,
+      inProgress: resume?.inProgress ?? prior?.inProgress ?? [],
+      topicsFailed: failed.size,
+      topicsDone: tasks.map((t) => t.topic.key).filter((k) => done.has(k)),
+      topicsFailedKeys: [...failed].sort(),
+      complete: false,
+      insightsStartedAt: startedAt,
+    };
+  };
+  // Saves are chained so concurrent topics never write out of order.
+  let saving: Promise<unknown> = Promise.resolve();
+  const save = (insights: ResearchInsights) => {
+    saving = saving.then(() => payload.update({ collection: "content-map-research", id: doc.id as number, data: { insights } as never, overrideAccess: true })).catch((err: Error) => {
+      console.warn("[content-map] research insights save failed:", err.message);
+    });
+    return saving;
+  };
+  const todo = tasks.filter((t) => !done.has(t.topic.key));
+  if (todo.length) await save(partial());
+
+  let next = 0;
+  const worker = async () => {
+    while (next < todo.length) {
+      const task = todo[next++];
+      if (!task) break;
+      const { topic, input } = task;
+      try {
+        const res = await call(payload, { ...buildResearchPrompt(ctx, input, result.siteUrl), maxTokens: 8000, timeoutMs: RESEARCH_INSIGHTS_TIMEOUT_MS });
+        const parsed = parseResearchIdeas(extractJson(res.text), ctx, input, competitorTerms(input.competitors));
+        if (!parsed.length) {
+          failed.add(topic.key);
+        } else {
+          model ||= res.model;
+          for (const d of parsed) if (!drafts.some((x) => x.idea.id === d.idea.id)) drafts.push(d);
+          done.add(topic.key);
+        }
+      } catch (err) {
+        console.warn(`[content-map] research insights for "${topic.name}" failed:`, (err as Error).message);
+        failed.add(topic.key);
+      }
+      await save(partial());
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(deps.concurrency ?? RESEARCH_INSIGHTS_CONCURRENCY, todo.length) }, worker));
+  await saving;
+
+  // Final pass, only once every topic is in (done, or failed this pass).
+  const previous: ResearchInsights | null = previousRun || resume ? { ...(previousRun ?? partial()), ideas: [...(previousRun?.ideas ?? []), ...(resume?.ideas ?? []).filter((i) => i.status !== "listed")] } : null;
   const { ideas, briefs } = assignStatuses(drafts, previous, plannedTitles);
   await suggestNewTopics(payload, clientId, ideas, authorities, suggestions);
 
@@ -647,12 +752,16 @@ export async function writeResearchInsights(
   }
   const insights: ResearchInsights = {
     model,
-    generatedAt: new Date((deps.now ?? Date.now)()).toISOString(),
-    gscId: gscDoc ? String(gscDoc.id) : null,
+    generatedAt: new Date(now()).toISOString(),
+    gscId,
     ideas,
     briefs,
     inProgress: pending.map((p, i) => ({ id: p.id, kind: p.kind, title: p.title, cmsId: p.cmsId, placement: placements[i] ?? null })),
-    topicsFailed,
+    topicsFailed: failed.size,
+    topicsDone: tasks.map((t) => t.topic.key).filter((k) => done.has(k)),
+    topicsFailedKeys: [...failed].sort(),
+    complete: true,
+    insightsStartedAt: startedAt,
   };
   await payload.update({ collection: "content-map-research", id: doc.id as number, data: { insights } as never, overrideAccess: true });
   return { ok: true, insights };
@@ -669,6 +778,25 @@ export function scheduleResearchInsights(payload: Payload, doc: Doc, deps: { cal
   } catch {
     void job();
   }
+}
+
+/**
+ * Self-heal: when the latest completed run's insights are missing/partial and
+ * stalled (see researchInsightsStalled), stamp insightsStartedAt first (so a
+ * second page load within 6 min doesn't double-start), then restart the job;
+ * it resumes with the missing topics only.
+ */
+export async function healResearchInsights(payload: Payload, doc: Doc | null, deps: { call?: Call; now?: () => number } = {}): Promise<boolean> {
+  const now = deps.now ?? Date.now;
+  if (!doc || !researchInsightsStalled(doc, now())) return false;
+  const insights = parseResearchInsights(doc.insights);
+  const gsc = insights ? null : await latestGsc(payload, relId(doc.client));
+  const marked: ResearchInsights = insights
+    ? { ...insights, insightsStartedAt: new Date(now()).toISOString() }
+    : { model: "", generatedAt: "", gscId: gsc ? String(gsc.id) : null, ideas: [], briefs: {}, inProgress: [], topicsFailed: 0, topicsDone: [], topicsFailedKeys: [], complete: false, insightsStartedAt: new Date(now()).toISOString() };
+  const updated = (await payload.update({ collection: "content-map-research", id: doc.id as number, data: { insights: marked } as never, overrideAccess: true })) as unknown as Doc;
+  scheduleResearchInsights(payload, updated, deps);
+  return true;
 }
 
 // ─── Decide ───────────────────────────────────────────────────────────────
@@ -755,6 +883,10 @@ export async function loadResearchState(
     }
     latest = polled;
   }
+  // Self-heal a run whose placement was cut off (e.g. the function hit 300 s).
+  if (done && done.status === "completed" && researchInsightsStalled(done, now())) {
+    await healResearchInsights(payload, done, { now }).catch((err: Error) => console.warn("[content-map] research insights self-heal failed:", err.message));
+  }
   const insights = done ? parseResearchInsights(done.insights) : null;
   const location = typeof input.client.targetLocation === "string" && input.client.targetLocation.trim() ? input.client.targetLocation.trim() : "Australia";
   const research = buildResearchView({ latest, done, gsc, gscConnected: input.client.gscConnected === true, snapshot: input.snapshot, authorities: input.authorities, location });
@@ -768,7 +900,7 @@ export interface ResearchScheduleResult {
 }
 
 /**
- * Monday chain (after ideas → citations): pull Search Console when the last
+ * Monday chain (in parallel with Write next ideas): pull Search Console when the last
  * pull is ≥ 6 days old, start research when the last completed run is ≥ 28
  * days old (a running one < 60 min is reused: no double GT call). When only
  * Search Console is new, re-place the latest research run with it.
@@ -779,16 +911,22 @@ export async function runResearchSchedule(
   deps: { now?: () => number; call?: Call; pull?: typeof maybePullWeeklyGsc; start?: typeof startResearchRun } = {},
 ): Promise<ResearchScheduleResult> {
   const now = deps.now ?? Date.now;
-  const gsc = await (deps.pull ?? maybePullWeeklyGsc)(payload, clientId, { now }).catch((err: Error) => ({ ok: false, connected: false, doc: null, error: err.message }) as GscPullResult);
-  const [last] = await latestCompletedResearch(payload, clientId);
-  const at = Date.parse(String(last?.generatedAt ?? ""));
-  let research: ResearchRunResult | null = null;
-  if (!last || !Number.isFinite(at) || now() - at >= MONTHLY_MIN_AGE_MS) {
-    const snapDoc = await latestCompletedDoc(payload, clientId);
-    const snapshot = snapDoc ? parseSnapshot(snapDoc.data) : null;
-    const plan = buildPlan({ snapshot, suggestions: await loadSuggestions(payload, clientId), result: null, insights: null });
-    research = await (deps.start ?? startResearchRun)(payload, clientId, { now, snapshot, plan });
-  }
+  // The Search Console pull and the research start are independent: run both at once.
+  const [gsc, { last, research }] = await Promise.all([
+    (deps.pull ?? maybePullWeeklyGsc)(payload, clientId, { now }).catch((err: Error) => ({ ok: false, connected: false, doc: null, error: err.message }) as GscPullResult),
+    (async () => {
+      const [last] = await latestCompletedResearch(payload, clientId);
+      const at = Date.parse(String(last?.generatedAt ?? ""));
+      let research: ResearchRunResult | null = null;
+      if (!last || !Number.isFinite(at) || now() - at >= MONTHLY_MIN_AGE_MS) {
+        const snapDoc = await latestCompletedDoc(payload, clientId);
+        const snapshot = snapDoc ? parseSnapshot(snapDoc.data) : null;
+        const plan = buildPlan({ snapshot, suggestions: await loadSuggestions(payload, clientId), result: null, insights: null });
+        research = await (deps.start ?? startResearchRun)(payload, clientId, { now, snapshot, plan });
+      }
+      return { last, research };
+    })(),
+  ]);
   let placed = false;
   const startedNew = research?.ok === true && research.run.status === "running";
   if (gsc?.ok && last && !startedNew && needsResearchInsights(last, gsc.doc)) {

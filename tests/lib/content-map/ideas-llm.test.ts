@@ -25,11 +25,27 @@ describe("Content Map model chain", () => {
     expect(await contentMapModelChain(P, { settings, credential: oauth })).toEqual(["kimi-k3", "claude-sonnet-5.5", "grok-4.6", "gpt-5.6-terra"]);
   });
 
-  it("puts the model chosen in OptiMate settings first", async () => {
+  it("puts the model chosen in OptiMate settings first when it's on a subscription login", async () => {
     const settings = vi.fn(async () => ({ contentMapModel: "claude-opus-5.5" }) as never);
-    const chain = await contentMapModelChain(P, { settings, credential: vi.fn(async () => null) });
+    const chain = await contentMapModelChain(P, { settings, credential: vi.fn(async () => ({ kind: "oauth" }) as never) });
     expect(chain[0]).toBe("claude-opus-5.5");
-    expect(chain.slice(1)).toEqual(["kimi-k3", "grok-4.6", "gpt-5.6-terra"]);
+    expect(chain.slice(1)).toEqual(["kimi-k3", "claude-sonnet-5.5", "grok-4.6", "gpt-5.6-terra"]);
+  });
+
+  it("ignores a chosen model that would bill an API key", async () => {
+    const none = vi.fn(async () => null);
+    for (const model of ["kimi-k2.6", "minimax-m3", "claude-opus-5.5"]) {
+      const settings = vi.fn(async () => ({ contentMapModel: model }) as never);
+      expect(await contentMapModelChain(P, { settings, credential: none })).toEqual(["kimi-k3", "grok-4.6", "gpt-5.6-terra"]);
+    }
+    const apiKeyOnly = vi.fn(async () => ({ kind: "api-key" }) as never);
+    const settings = vi.fn(async () => ({ contentMapModel: "claude-opus-5.5" }) as never);
+    expect((await contentMapModelChain(P, { settings, credential: apiKeyOnly }))[0]).toBe("kimi-k3");
+  });
+
+  it("uses a chosen OAuth-only model first even without a stored credential check", async () => {
+    const settings = vi.fn(async () => ({ contentMapModel: "grok-4.6" }) as never);
+    expect(await contentMapModelChain(P, { settings, credential: vi.fn(async () => null) })).toEqual(["grok-4.6", "kimi-k3", "gpt-5.6-terra"]);
   });
 
   it("calls the first model with the rest as fallbacks and returns its text", async () => {

@@ -14,6 +14,7 @@ import { type MapResearch, MapView } from "./MapView";
 import { InProgressList, type ResearchAction, ResearchList, type ResearchTeam, showResearch } from "./research";
 import { st } from "./st";
 import { ACTIVE_TAB, GHOST_BTN } from "./ui";
+import RocketSplash from "../RocketSplash";
 import { WriteNext } from "./WriteNext";
 import "./ClientContentMap.css";
 
@@ -32,7 +33,8 @@ const FONT_HREF = "https://fonts.googleapis.com/css2?family=Instrument+Sans:wght
 const ROOT_BASE = "display:grid;grid-template-rows:auto minmax(0,1fr);min-height:680px;width:100%;font-family:'Instrument Sans',sans-serif;font-size:16px;line-height:normal;color:oklch(0.24 0.012 85);background:oklch(0.975 0.005 85);overflow:hidden";
 const ROOT: Record<"embedded" | "page", string> = {
   embedded: `${ROOT_BASE};height:calc(100vh - 160px);border:1px solid oklch(0.9 0.006 85);border-radius:10px`,
-  page: `${ROOT_BASE};height:100vh`,
+  // Leaves room for ContentMapPage's 40px "Managed by" bar so both fit the window.
+  page: `${ROOT_BASE};height:calc(100vh - 40px)`,
 };
 const STATE_BOX = "display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:40px;text-align:center";
 const STATE_TEXT = "font-size:13px;line-height:1.5;color:oklch(0.52 0.01 85);max-width:460px;text-wrap:pretty";
@@ -356,6 +358,25 @@ export function ContentMapShell({ clientId, slug, variant = "embedded", audience
       {action?.onClick ? <button type="button" onClick={action.onClick} style={st(GHOST_BTN)}>{action.label}</button> : null}
     </div>
   );
+  // The Optimise Digital rocket (same loader as the rest of the CMS) while the
+  // map loads, the moment Analyse is pressed, and through the first analysis.
+  const rocketBox = (label: string, detail?: string) => (
+    <div data-testid="ccm-rocket" style={st(`${STATE_BOX};height:100%;gap:6px;padding-bottom:90px`)}>
+      <RocketSplash label={label} />
+      {detail ? <div style={st(STATE_TEXT)}>{detail}</div> : null}
+    </div>
+  );
+  const pages = data?.run?.pagesCrawled ?? 0;
+  const phaseLine = (() => {
+    switch (data?.run?.phase) {
+      case "queued": return "Waiting for a free slot to start";
+      case "crawling": return pages ? `Reading the site · ${pages} pages so far` : "Reading the site";
+      case "classifying": return `Sorting ${pages || "the"} pages into topics`;
+      case "linking": return "Tracing links and finding link opportunities";
+      case "recommending": return "Planning what to write next";
+      default: return pages ? `${pages} pages read so far` : "Starting up";
+    }
+  })();
   const fullPage = variant === "embedded" && !isClient && data?.client.slug ? contentMapPath(data.client.slug) : null;
   // Staff on the page can flip between the team view and what the client sees.
   const pagePath = slug ? contentMapPath(slug) : null;
@@ -372,10 +393,10 @@ export function ContentMapShell({ clientId, slug, variant = "embedded", audience
 
   let body: React.ReactNode;
   if (loadError && !data) body = stateBox(isClient ? "Couldn't load your content map. Please try again." : `Couldn't load the content map: ${loadError}`, { label: "Retry", onClick: () => void load() });
-  else if (!data) body = stateBox(isClient ? "Loading your content map…" : "Loading the content map…");
+  else if (!data) body = rocketBox(isClient ? "Loading your content map" : "Loading the content map");
   else if (!data.client.enabled) body = stateBox(isClient ? "This content map isn't switched on yet." : "Content Map analysis is switched off for this client. Switch it on, with topic authorities, in the Blog Settings tab → Content Map.", variant === "page" && !isClient ? { label: "Open client", href: clientAdmin } : undefined);
-  else if (!snap && isClient) body = stateBox(running ? "Your content map is being prepared. This page updates by itself when it's ready." : "Your content map is being prepared.");
-  else if (!snap && running) body = stateBox(`First analysis in progress… ${data.run?.pagesCrawled ?? 0} pages crawled. This page checks again every 10 seconds.`);
+  else if (!snap && isClient) body = running ? rocketBox("Preparing your content map", "This page updates by itself when it's ready.") : stateBox("Your content map is being prepared.");
+  else if (!snap && (running || starting)) body = rocketBox("Analysing the site", starting && !running ? "Starting the analysis" : `${phaseLine}. This usually takes a few minutes; the map appears here by itself.`);
   else if (!snap && data.run?.status === "failed") body = stateBox(`The analysis failed: ${data.run.error ?? "unknown error"}`, { label: "Retry", onClick: () => void reanalyse() });
   else if (!snap || !mapModel || !oppModel) body = stateBox("No analysis yet.", { label: "Analyse now", onClick: () => void reanalyse() });
   else if (tab === "approach") body = <Approach model={mapModel} snapshot={snap} clientName={data.client.name} authorities={data.client.authorities} recs={recs} sent={sent} linksPlanned={accepted.length} linksAdded={appliedCount} audience={audience} width={width} onOpenTopic={(k) => { setNav({ topic: k, sel: null, pair: null }); setTab("map"); }} onOpenRec={openRec} onOpenLinks={() => setTab("opps")} citations={citations} onOpenCitations={() => setTab("cites")} research={researchView} inProgress={inProgress} suggestions={isClient ? <ClientSuggestions model={mapModel} suggestions={suggestions} onSuggest={openSuggest} /> : null} />;
@@ -394,45 +415,40 @@ export function ContentMapShell({ clientId, slug, variant = "embedded", audience
   return (
     <div ref={rootRef} className="ccm-root" style={st(ROOT[variant])}>
       <link rel="stylesheet" href={FONT_HREF} precedence="default" />
-      <header style={st(`display:flex;align-items:center;flex-wrap:wrap;gap:${tight ? 12 : 24}px;padding:14px ${tight ? 16 : 24}px;border-bottom:1px solid oklch(0.9 0.006 85);background:oklch(0.995 0.002 85)`)}>
-        <div style={st("display:flex;flex-direction:column;gap:3px")}>
-          <div style={st(`font:500 11px 'JetBrains Mono',monospace;letter-spacing:.08em;text-transform:uppercase;color:oklch(0.52 0.01 85);line-height:1.45;white-space:nowrap`)}>
-            {variant === "page" && !isClient && data?.client.name ? (
-              <><a href={clientAdmin} aria-label="Open client" style={st("color:inherit;text-decoration:none")}>{data.client.name}</a> · </>
-            ) : data?.client.name ? `${data.client.name} · ` : ""}
-            {/* One line, as in the design: drop the label before the date when the header is tight. */}
-            {[tight ? "" : "Internal link map", snap ? formatDay(snap.generatedAt) : ""].filter(Boolean).join(" · ")}
-            {fullPage ? <> · <a href={fullPage} target="_blank" rel="noopener" aria-label="Open full page" style={st("color:inherit")}>Full page ↗</a></> : null}
-            {viewSwitch ? <> · <a href={viewSwitch.href} style={st("color:inherit")}>{viewSwitch.label}</a></> : null}
-          </div>
-          <div style={st("font-size:20px;font-weight:600;letter-spacing:-.01em")}>Topic associations</div>
-        </div>
+      {/* One row: title · tabs in the middle · status, actions and stats. */}
+      <header style={st(`display:flex;align-items:center;flex-wrap:wrap;gap:${tight ? 10 : 16}px;padding:12px ${tight ? 16 : 24}px;border-bottom:1px solid oklch(0.9 0.006 85);background:oklch(0.995 0.002 85)`)}>
+        <div style={st("font-size:20px;font-weight:600;letter-spacing:-.01em;white-space:nowrap")}>Topic associations</div>
         <div style={st("flex:1")} />
-        {data?.client.enabled && (statusLine || runError || failedWithSnap || !isClient) ? (
-          <div style={st("display:flex;align-items:center;gap:10px")}>
-            <span style={st(`font-size:12px;color:${runError || failedWithSnap ? "oklch(0.52 0.17 25)" : "oklch(0.52 0.01 85)"}`)}>
-              {runError ?? (failedWithSnap ? `Last run failed: ${data.run?.error ?? "unknown error"}` : statusLine)}
-            </span>
-            {isClient ? null : <button type="button" disabled={running || starting} onClick={() => void reanalyse()} style={st(`${GHOST_BTN};opacity:${running || starting ? 0.6 : 1}`)}>Re-analyse</button>}
+        {snap && mapModel ? (
+          <div role="tablist" style={st("display:flex;gap:2px;padding:3px;border-radius:10px;background:oklch(0.94 0.006 85)")}>
+            {TABS[audience].map(([k, label]) => (
+              <button type="button" role="tab" aria-selected={tab === k} key={k} onClick={() => setTab(k)} style={st(`border:0;cursor:pointer;padding:7px ${tight ? 8 : 14}px;border-radius:7px;font-size:13px;font-weight:500;white-space:nowrap;background:${tab === k ? ACTIVE_TAB.bg : "transparent"};box-shadow:${tab === k ? ACTIVE_TAB.sh : "none"}`)}>{label}</button>
+            ))}
           </div>
         ) : null}
-        {snap && mapModel && data?.client.enabled ? (
-          <button type="button" onClick={() => (suggestOpen ? setSuggestOpen(false) : openSuggest())} aria-pressed={suggestOpen} style={st(`${GHOST_BTN};${suggestOpen ? "background:oklch(0.94 0.006 85)" : ""}`)}>Suggest</button>
-        ) : null}
-        {snap && mapModel ? (
-          <>
-            <div style={st(`display:flex;gap:${tight ? 12 : 28}px`)}>
-              <div style={st("display:flex;flex-direction:column;gap:2px")}><span style={st("font:600 18px 'JetBrains Mono',monospace")}>{snap.stats.pagesCrawled}</span><span style={st("font-size:12px;color:oklch(0.52 0.01 85)")}>pages mapped</span></div>
-              <div style={st("display:flex;flex-direction:column;gap:2px")}><span style={st("font:600 18px 'JetBrains Mono',monospace")}>{mapModel.linkTotal}</span><span style={st("font-size:12px;color:oklch(0.52 0.01 85)")}>in-text links</span></div>
-              <div style={st("display:flex;flex-direction:column;gap:2px")}><span style={st("font:600 18px 'JetBrains Mono',monospace;color:oklch(0.52 0.17 25)")}>{mapModel.gaps.length}</span><span style={st("font-size:12px;color:oklch(0.52 0.01 85)")}>topic gaps</span></div>
+        <div style={st("flex:1")} />
+        <div style={st(`display:flex;align-items:center;gap:${tight ? 8 : 10}px`)}>
+          {data?.client.enabled && (runError || failedWithSnap || statusLine || (snap && (!tight || isClient))) ? (
+            <span style={st(`font-size:12px;white-space:nowrap;color:${runError || failedWithSnap ? "oklch(0.52 0.17 25)" : "oklch(0.52 0.01 85)"}`)}>
+              {runError ?? (failedWithSnap ? `Last run failed: ${data.run?.error ?? "unknown error"}` : statusLine || (snap ? `Updated ${formatDay(snap.generatedAt)}` : ""))}
+            </span>
+          ) : null}
+          {data?.client.enabled && !isClient ? (
+            <button type="button" disabled={running || starting} title={snap ? `Updated ${formatDay(snap.generatedAt)}` : undefined} onClick={() => void reanalyse()} style={st(`${GHOST_BTN};white-space:nowrap;opacity:${running || starting ? 0.6 : 1}`)}>Re-analyse</button>
+          ) : null}
+          {viewSwitch ? <a href={viewSwitch.href} style={st(`${GHOST_BTN};text-decoration:none;white-space:nowrap`)}>{viewSwitch.label}</a> : null}
+          {fullPage ? <a href={fullPage} target="_blank" rel="noopener" aria-label="Open full page" style={st(`${GHOST_BTN};text-decoration:none;white-space:nowrap`)}>Full page ↗</a> : null}
+          {snap && mapModel && data?.client.enabled ? (
+            <button type="button" onClick={() => (suggestOpen ? setSuggestOpen(false) : openSuggest())} aria-pressed={suggestOpen} style={st(`${GHOST_BTN};white-space:nowrap;${suggestOpen ? "background:oklch(0.94 0.006 85)" : ""}`)}>Suggest</button>
+          ) : null}
+          {snap && mapModel ? (
+            <div style={st(`display:flex;gap:${tight ? 12 : 22}px;margin-left:${tight ? 4 : 8}px`)}>
+              <div style={st("display:flex;flex-direction:column;gap:2px")}><span style={st("font:600 18px 'JetBrains Mono',monospace")}>{snap.stats.pagesCrawled}</span><span style={st("font-size:12px;color:oklch(0.52 0.01 85);white-space:nowrap")}>pages mapped</span></div>
+              <div style={st("display:flex;flex-direction:column;gap:2px")}><span style={st("font:600 18px 'JetBrains Mono',monospace")}>{mapModel.linkTotal}</span><span style={st("font-size:12px;color:oklch(0.52 0.01 85);white-space:nowrap")}>in-text links</span></div>
+              <div style={st("display:flex;flex-direction:column;gap:2px")}><span style={st("font:600 18px 'JetBrains Mono',monospace;color:oklch(0.52 0.17 25)")}>{mapModel.gaps.length}</span><span style={st("font-size:12px;color:oklch(0.52 0.01 85);white-space:nowrap")}>topic gaps</span></div>
             </div>
-            <div role="tablist" style={st("display:flex;gap:2px;padding:3px;border-radius:10px;background:oklch(0.94 0.006 85)")}>
-              {TABS[audience].map(([k, label]) => (
-                <button type="button" role="tab" aria-selected={tab === k} key={k} onClick={() => setTab(k)} style={st(`border:0;cursor:pointer;padding:7px ${tight ? 8 : 14}px;border-radius:7px;font-size:13px;font-weight:500;white-space:nowrap;background:${tab === k ? ACTIVE_TAB.bg : "transparent"};box-shadow:${tab === k ? ACTIVE_TAB.sh : "none"}`)}>{label}</button>
-              ))}
-            </div>
-          </>
-        ) : null}
+          ) : null}
+        </div>
       </header>
       <div style={st("position:relative;min-height:0;height:100%")}>
         {body}

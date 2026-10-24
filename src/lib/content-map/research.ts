@@ -47,6 +47,14 @@ export interface ResearchInsights {
   briefs: Record<string, SnapshotRecommendation>;
   inProgress: InProgressItem[];
   topicsFailed: number;
+  /** Topic keys whose model call finished (incremental save). Absent on older rows. */
+  topicsDone?: string[];
+  /** Topic keys whose model call failed in the latest pass. */
+  topicsFailedKeys?: string[];
+  /** false while topics are still missing or the final statuses haven't run; absent (older rows) = complete. */
+  complete?: boolean;
+  /** When the latest insights job started (self-heal de-duplication). */
+  insightsStartedAt?: string;
 }
 
 export function parseResearchResult(value: unknown): ResearchResult | null {
@@ -65,6 +73,10 @@ export function parseResearchInsights(value: unknown): ResearchInsights | null {
     briefs: v.briefs,
     inProgress: Array.isArray(v.inProgress) ? v.inProgress : [],
     topicsFailed: typeof v.topicsFailed === "number" ? v.topicsFailed : 0,
+    ...(Array.isArray(v.topicsDone) ? { topicsDone: v.topicsDone.filter((k): k is string => typeof k === "string") } : {}),
+    ...(Array.isArray(v.topicsFailedKeys) ? { topicsFailedKeys: v.topicsFailedKeys.filter((k): k is string => typeof k === "string") } : {}),
+    ...(typeof v.complete === "boolean" ? { complete: v.complete } : {}),
+    ...(typeof v.insightsStartedAt === "string" ? { insightsStartedAt: v.insightsStartedAt } : {}),
   };
 }
 
