@@ -112,7 +112,7 @@ describe("staff routes", () => {
   });
 
   it("citations/run calls GT once and reuses the run", async () => {
-    holder.payload.store["content-map-questions"] = [{ id: 1, client: 7, topic: "vietnam", question: "Is Vietnam good?", source: "team", active: true }];
+    holder.payload.store["content-map-questions"] = [{ id: 1, client: 7, topic: "vietnam", question: "Is Vietnam good?", source: "team", active: true, questionGroup: "planned" }];
     fetchMock.mockImplementation(async (url: string) => (String(url).includes("/citations") ? new Response(JSON.stringify({ runId: "c1", status: "running" }), { status: 202 }) : new Response("{}", { status: 500 })));
     const first = await (await citationsRun(req("/x", { clientId: "7" }))).json();
     expect(first).toMatchObject({ runId: "c1", status: "running" });

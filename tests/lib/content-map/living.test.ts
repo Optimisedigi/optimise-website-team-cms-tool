@@ -137,32 +137,77 @@ describe("suggestions", () => {
 });
 
 describe("tracked questions", () => {
-  it("fills to 8 per topic in order, stays stable, and never re-adds removed ones", async () => {
-    const p = createFakePayload({ "content-map-questions": [{ id: 1, client: 7, topic: "vietnam", question: "Removed question about Vietnam?", source: "team", active: false }] });
-    const snapshot: ContentMapSnapshot = { ...sample, nodes: [...sample.nodes, { id: "/q/", g: "vietnam", t: "Is Vietnam safe for outsourcing?", in: 1, out: 0 }] };
-    const suggestions = [{ id: 9, status: "approved", topic: "vietnam", origin: "client", brief: { question: "How do I hire developers in Vietnam?" } }];
-    const call = model(JSON.stringify({ questions: ["Removed question about Vietnam?", ...Array.from({ length: 12 }, (_, i) => `Buyer question number ${i} for this topic?`)] }));
-    const input = { clientId: "7", siteUrl: "https://a.com", authorities, snapshot, suggestions };
-    const first = await ensureQuestions(p as never, input, { call });
-    const vn = first.filter((q) => q.topic === "vietnam");
-    expect(vn).toHaveLength(8);
-    const recQs = sample.recommendations.filter((r) => r.topic === "vietnam").map((r) => r.question);
-    expect(vn.slice(0, recQs.length).map((q) => q.question)).toEqual(recQs);
-    expect(vn.map((q) => q.source)).toContain("client");
-    expect(vn.map((q) => q.source)).toContain("article");
-    expect(vn.map((q) => q.question)).not.toContain("Removed question about Vietnam?");
-    expect(first.filter((q) => q.topic === "cost")).toHaveLength(8);
-    const again = await ensureQuestions(p as never, input, { call });
+  // Published CMS articles: 11 matches the sample's first Vietnam page by cmsId; 12 isn't crawled yet.
+  const vnPage = sample.nodes.find((n) => n.g === "vietnam" && !n.agg && n.status !== "draft")!;
+  const articles = [
+    { id: 11, title: "Why outsource to Vietnam | Away Digital Teams", slug: "why-vietnam", markdownContent: "Teams in Vietnam cut costs for Australian firms without losing quality or time.\n\n## What does it cost?\n## How do you start?" },
+    { id: 12, title: "How do I hire a bookkeeper offshore?", slug: "hire-bookkeeper", markdownContent: "" },
+  ];
+  const snapWithCms = (): ContentMapSnapshot => ({ ...sample, nodes: sample.nodes.map((n) => (n.id === vnPage.id ? { ...n, cmsId: "11" } : n)) });
+  const articleModel = (map: Record<string, string>) => (q: string) => JSON.stringify({ questions: Object.entries(map).map(([id, question]) => ({ id, question })).concat([{ id: "x", question: q }]) });
+
+  it("existing articles first (one question each, linked to the article), then up to 2 planned per topic", async () => {
+    const p = createFakePayload({ "content-map-questions": [] });
+    const suggestions = [{ id: 9, kind: "article", status: "approved", topic: "vietnam", origin: "client", brief: { ...sample.recommendations[0], id: "s9", title: "Hiring developers in Vietnam: a practical guide", topic: "vietnam", question: "How do I hire developers in Vietnam?" } }];
+    const call = vi.fn(async (_p: unknown, i: { user: string }) => ({
+      text: i.user.includes("Article 11")
+        ? articleModel({ "11": "Is outsourcing to Vietnam worth it for Australian businesses?" })("ignored")
+        : JSON.stringify({ questions: ["Fresh buyer question one for this topic?", "Fresh buyer question two for this topic?"] }),
+      model: "kimi-k3",
+    }));
+    const input = { clientId: "7", siteUrl: "https://a.com", authorities, snapshot: snapWithCms(), suggestions };
+    const first = await ensureQuestions(p as never, input, { call, articles, gsc: null });
+
+    const existing = first.filter((q) => q.questionGroup === "existing");
+    expect(first.slice(0, existing.length)).toEqual(existing); // listed first
+    expect(existing.map((q) => [q.question, q.blogPost, q.pageId, q.pageTitle, q.topic])).toEqual([
+      ["Is outsourcing to Vietnam worth it for Australian businesses?", 11, vnPage.id, "Why outsource to Vietnam", "vietnam"],
+      // not crawled + model gave nothing: a title that's already a question is used, on the primary topic
+      ["How do I hire a bookkeeper offshore?", 12, null, "How do I hire a bookkeeper offshore?", authorities.find((a) => a.primary)?.key ?? authorities[0]!.key],
+    ]);
+    expect(call.mock.calls[0]![1].user).toContain("Sections: What does it cost? | How do you start?");
+
+    const planned = first.filter((q) => q.questionGroup === "planned");
+    for (const a of authorities) expect(planned.filter((q) => q.topic === a.key).length).toBeLessThanOrEqual(2);
+    // approved client suggestion comes first in its topic
+    expect(planned.filter((q) => q.topic === "vietnam")[0]).toMatchObject({ question: "How do I hire developers in Vietnam?", source: "client" });
+
+    // stable: a second run adds nothing and keeps the same ids/order
+    const again = await ensureQuestions(p as never, input, { call, articles, gsc: null });
     expect(again.map((q) => q.id)).toEqual(first.map((q) => q.id));
   });
 
+  it("rebuild: retires the old ungrouped questions once and reuses a matching one (keeps its history)", async () => {
+    const old = [
+      { id: 1, client: 7, topic: "vietnam", question: "Is outsourcing to Vietnam worth it for Australian businesses?", source: "ai", active: true },
+      { id: 2, client: 7, topic: "cost", question: "An old cost question nobody needs?", source: "recommendation", active: true },
+      { id: 3, client: 7, topic: "cost", question: "Team removed this on purpose?", source: "team", active: false, questionGroup: "planned" },
+    ];
+    const p = createFakePayload({ "content-map-questions": old });
+    const call = vi.fn(async () => ({ text: JSON.stringify({ questions: [{ id: "11", question: "Is outsourcing to Vietnam worth it for Australian businesses?" }, "Team removed this on purpose?", "A brand new planned cost question?"] }), model: "kimi-k3" }));
+    const res = await ensureQuestions(p as never, { clientId: "7", siteUrl: "https://a.com", authorities, snapshot: snapWithCms(), suggestions: [] }, { call, articles: [articles[0]!], gsc: null });
+    const rows = p.store["content-map-questions"]!;
+    // id 1 reused for the article question (same text) instead of a new row
+    expect(rows.find((r) => r.id === 1)).toMatchObject({ active: true, questionGroup: "existing", blogPost: 11 });
+    expect(rows.find((r) => r.id === 2)).toMatchObject({ active: false });
+    expect(res.some((q) => q.question === "Team removed this on purpose?")).toBe(false);
+    expect(res.some((q) => q.id === 2)).toBe(false);
+  });
+
+  it("stops tracking articles that are no longer published", async () => {
+    const p = createFakePayload({ "content-map-questions": [{ id: 5, client: 7, topic: "vietnam", question: "Old article question here?", source: "article", active: true, questionGroup: "existing", blogPost: 99 }] });
+    const res = await ensureQuestions(p as never, { clientId: "7", siteUrl: "https://a.com", authorities, snapshot: sample, suggestions: [] }, { call: vi.fn(async () => ({ text: "{}", model: "k" })), articles: [], gsc: null });
+    expect(res.some((q) => q.id === 5)).toBe(false);
+    expect(p.store["content-map-questions"]!.find((r) => r.id === 5)).toMatchObject({ active: false });
+  });
+
   it("add (max 8, 409) and remove", async () => {
-    const p = createFakePayload({ "content-map-questions": Array.from({ length: 8 }, (_, i) => ({ client: 7, topic: "cost", question: `Cost question ${i}?`, source: "ai", active: true })) });
+    const p = createFakePayload({ "content-map-questions": Array.from({ length: 8 }, (_, i) => ({ client: 7, topic: "cost", question: `Cost question ${i}?`, source: "ai", active: true, questionGroup: "planned" })) });
     expect(await addQuestion(p as never, { clientId: "7", topic: "cost", question: "Another cost question?", authorities })).toMatchObject({ ok: false, status: 409 });
     expect(await addQuestion(p as never, { clientId: "7", topic: "nope", question: "Another cost question?", authorities })).toMatchObject({ ok: false, status: 400 });
     const added = await addQuestion(p as never, { clientId: "7", topic: "vietnam", question: "Is Vietnam good for <b>QA</b> teams?", authorities });
     if (!added.ok) throw new Error(added.error);
-    expect(added.questions.some((q) => q.question === "Is Vietnam good for QA teams?" && q.source === "team")).toBe(true);
+    expect(added.questions.some((q) => q.question === "Is Vietnam good for QA teams?" && q.source === "team" && q.questionGroup === "planned")).toBe(true);
     const id = String(added.questions[0]?.id);
     const removed = await removeQuestion(p as never, { clientId: "7", id });
     expect(removed.ok && removed.questions.some((q) => String(q.id) === id)).toBe(false);
@@ -257,7 +302,7 @@ describe("citation runs", () => {
     vi.stubGlobal("fetch", f);
     const p = createFakePayload({
       clients: [client],
-      "content-map-questions": [{ client: 7, topic: "vietnam", question: "Is Vietnam good for software?", source: "team", active: true }],
+      "content-map-questions": [{ client: 7, topic: "vietnam", question: "Is Vietnam good for software?", source: "team", active: true, questionGroup: "planned" }],
       "content-map-citations": [{ client: 7, runId: "old", status: "completed", generatedAt: new Date(NOW - 3 * 86_400_000).toISOString() }],
     });
     const call = model("{\"questions\":[]}");
@@ -318,10 +363,25 @@ describe("plan + view", () => {
       { id: 2, status: "completed", generatedAt: "2026-10-22", result: r, insights, stats: { okChecks: 2, cited: 1 } },
       { id: 1, status: "completed", generatedAt: "2026-10-15", stats: { okChecks: 4, cited: 0 } },
     ];
-    const view = buildCitationsView({ latest: completed[0] ?? null, completed, questions: [{ id: "q1", topic: "vietnam", question: rec1.question, source: "recommendation" }, { id: "q7", topic: "gone", question: "x" }], authorities });
+    const page = sample.nodes.find((n) => n.g === "vietnam" && !n.agg && n.status !== "draft")!;
+    const view = buildCitationsView({
+      latest: completed[0] ?? null,
+      completed,
+      questions: [
+        { id: "q1", topic: "vietnam", question: rec1.question, source: "recommendation", questionGroup: "planned" },
+        { id: "q2", topic: "vietnam", question: "Article question?", source: "article", questionGroup: "existing", pageId: page.id, pageTitle: "Why Vietnam" },
+        { id: "q7", topic: "gone", question: "x" },
+      ],
+      authorities,
+      snapshot: sample,
+    });
     expect(view).toMatchObject({ status: "completed", generatedAt: "2026-10-22", insightsModel: "kimi-k3", topDomains: [{ domain: "deel.com", count: 2 }] });
     expect(view?.trend.map((t) => t.generatedAt)).toEqual(["2026-10-15", "2026-10-22"]);
-    expect(view?.questions).toHaveLength(1);
+    expect(view?.questions).toHaveLength(2);
+    expect(view?.questions.find((q) => q.id === "q2")).toMatchObject({ group: "existing", pageTitle: "Why Vietnam", pageId: page.id, pageUrl: `${new URL(sample.siteUrl).origin}${page.id}` });
+    expect(view?.questions.find((q) => q.id === "q1")).toMatchObject({ group: "planned", pageTitle: null, pageUrl: null });
+    expect(view?.groups.planned).toEqual({ questions: 1, checks: 2, cited: 0 });
+    expect(view?.groups.existing.questions).toBe(1);
     expect(view?.questions[0]?.checks[1]).toEqual({ engine: "perplexity", ok: true, clientCited: false, clientMentioned: false, citedDomains: ["statista.com", "deel.com"] });
     expect(view?.byTopic.vietnam).toEqual({ questions: 1, checks: 2, cited: 0 });
   });

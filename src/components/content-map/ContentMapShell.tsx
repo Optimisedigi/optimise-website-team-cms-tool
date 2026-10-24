@@ -39,7 +39,7 @@ const ROOT: Record<"embedded" | "page", string> = {
 const STATE_BOX = "display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:40px;text-align:center";
 const STATE_TEXT = "font-size:13px;line-height:1.5;color:oklch(0.52 0.01 85);max-width:460px;text-wrap:pretty";
 
-const EMPTY_CITATIONS: CitationsView = { status: "none", error: null, generatedAt: null, engines: [], questions: [], byTopic: {}, trend: [], topDomains: [], refresh: [], insightsModel: "" };
+const EMPTY_CITATIONS: CitationsView = { status: "none", error: null, generatedAt: null, engines: [], questions: [], byTopic: {}, groups: { existing: { questions: 0, checks: 0, cited: 0 }, planned: { questions: 0, checks: 0, cited: 0 } }, trend: [], topDomains: [], refresh: [], insightsModel: "" };
 
 async function postJson(url: string, body: unknown, signal?: AbortSignal): Promise<{ ok: true; json: Record<string, unknown> } | { ok: false; error: string }> {
   try {

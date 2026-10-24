@@ -31,7 +31,7 @@ import type {
   TopicAuthorityInput,
   TrackedQuestionView,
 } from "./types";
-import { CITATION_ENGINES, isRecord, parseSnapshot } from "./types";
+import { CITATION_ENGINES, isRecord, MAX_TRACKED_QUESTIONS, parseSnapshot } from "./types";
 import { clientSiteUrl } from "./paths";
 
 type Doc = Record<string, unknown>;
@@ -41,7 +41,7 @@ export const RETAIN_CITATION_RUNS = 12;
 export const CITATION_REUSE_MS = 60 * 60 * 1000;
 export const CITATION_POLL_AFTER_MS = 3 * 60 * 1000;
 export const WEEKLY_MIN_AGE_MS = 6 * 24 * 60 * 60 * 1000;
-const MAX_QUESTIONS = 64;
+const MAX_QUESTIONS = MAX_TRACKED_QUESTIONS;
 const CONCURRENCY = 4;
 /** Self-heal waits this long after the run finished / the last insights job started. */
 export const CITATION_INSIGHTS_HEAL_AFTER_MS = 6 * 60 * 1000;
@@ -460,6 +460,8 @@ export function buildCitationsView(input: {
   completed: readonly Doc[];
   questions: readonly Doc[];
   authorities: readonly TopicAuthorityInput[];
+  /** For existing-article questions: the page's live address and title. */
+  snapshot?: ContentMapSnapshot | null;
 }): CitationsView | null {
   const { latest } = input;
   if (!latest && !input.questions.length) return null;
@@ -468,9 +470,22 @@ export function buildCitationsView(input: {
   const insights = done ? parseInsights(done.insights) : null;
   const engines: CitationEngine[] = result?.engines?.length ? result.engines : [...CITATION_ENGINES];
   const keys = new Set(input.authorities.map((a) => a.key));
+  const origin = (() => {
+    try {
+      return input.snapshot?.siteUrl ? new URL(input.snapshot.siteUrl).origin : "";
+    } catch {
+      return "";
+    }
+  })();
+  const nodes = new Map((input.snapshot?.nodes ?? []).filter((n) => !n.agg).map((n) => [n.id, n]));
   const questions: TrackedQuestionView[] = input.questions
     .filter((q) => keys.has(String(q.topic)))
     .map((q) => {
+      const group: TrackedQuestionView["group"] = q.questionGroup === "existing" ? "existing" : "planned";
+      const pageId = group === "existing" && typeof q.pageId === "string" && q.pageId ? q.pageId : null;
+      const node = pageId ? nodes.get(pageId) : undefined;
+      const pageUrl = node && origin && node.id.startsWith("/") ? `${origin}${node.id}` : null;
+      const pageTitle = group === "existing" ? (typeof q.pageTitle === "string" && q.pageTitle ? q.pageTitle : node?.t ?? null) : null;
       const id = String(q.id);
       const text = String(q.question ?? "");
       const hit = result?.questions.find((x) => x.id === id) ?? result?.questions.find((x) => normTitle(x.question) === normTitle(text));
@@ -480,6 +495,10 @@ export function buildCitationsView(input: {
         topic: String(q.topic),
         question: text,
         source,
+        group,
+        pageTitle,
+        pageUrl,
+        pageId: node ? node.id : pageId,
         checks: (hit?.results ?? []).map((c) => ({
           engine: c.engine,
           ok: c.ok,
@@ -494,6 +513,14 @@ export function buildCitationsView(input: {
     const qs = result?.questions.filter((q) => q.topic === a.key) ?? [];
     const checks = qs.flatMap((q) => q.results.filter((c) => c.ok));
     byTopic[a.key] = { questions: qs.length, checks: checks.length, cited: checks.filter((c) => c.clientCited).length };
+  }
+  const groups: CitationsView["groups"] = { existing: { questions: 0, checks: 0, cited: 0 }, planned: { questions: 0, checks: 0, cited: 0 } };
+  for (const q of questions) {
+    const g = groups[q.group];
+    g.questions++;
+    const ok = q.checks.filter((c) => c.ok);
+    g.checks += ok.length;
+    g.cited += ok.filter((c) => c.clientCited).length;
   }
   const trend = [...input.completed]
     .slice(0, RETAIN_CITATION_RUNS)
@@ -510,6 +537,7 @@ export function buildCitationsView(input: {
     engines,
     questions,
     byTopic,
+    groups,
     trend,
     topDomains: (result?.stats.topDomains ?? []).slice(0, 15).map((d) => ({ domain: d.domain, count: d.count })),
     refresh: insights?.refresh ?? [],

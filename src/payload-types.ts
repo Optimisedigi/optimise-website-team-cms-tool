@@ -8930,6 +8930,10 @@ export interface ContentMapQuestion {
   question: string;
   source: 'ai' | 'team' | 'client' | 'recommendation' | 'article';
   active?: boolean | null;
+  questionGroup?: ('existing' | 'planned') | null;
+  blogPost?: (number | null) | BlogPost;
+  pageId?: string | null;
+  pageTitle?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -14365,6 +14369,10 @@ export interface ContentMapQuestionsSelect<T extends boolean = true> {
   question?: T;
   source?: T;
   active?: T;
+  questionGroup?: T;
+  blogPost?: T;
+  pageId?: T;
+  pageTitle?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -17021,7 +17029,7 @@ export interface OptimateSetting {
    */
   blogImageGenerationModel: string;
   /**
-   * Optional. Model that writes accepted Content Map links into articles and writes the Write next ideas. Leave blank to use the subscription models only (Kimi K3, then Claude and Grok via OAuth).
+   * Optional. Model used first for every Content Map AI step (link edits, Write next ideas, tracked questions, AI-citation and research analysis). Only subscription (OAuth) models are used: a model that would bill an API key is ignored. Leave blank for Kimi K3, then Claude, Grok and GPT via OAuth.
    */
   contentMapModel?:
     | (

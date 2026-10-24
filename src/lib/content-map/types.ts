@@ -229,8 +229,21 @@ export const CITATION_ENGINE_LABELS: Record<CitationEngine, string> = {
   gemini: "Gemini",
   google_aio: "Google AI Overviews",
 };
-/** Tracked questions per topic authority (user decision: up to 8, weekly). */
+/** Most planned/suggested questions a topic can hold (team can add up to this). */
 export const MAX_QUESTIONS_PER_TOPIC = 8;
+/** Planned/suggested questions filled automatically per topic (user decision 2026-10-24: 2). */
+export const PLANNED_QUESTIONS_PER_TOPIC = 2;
+/** Existing-article questions per run (one per published article); GT accepts 64 questions in total. */
+export const MAX_EXISTING_QUESTIONS = 48;
+/** Most questions sent to Growth Tools in one citation run. */
+export const MAX_TRACKED_QUESTIONS = 64;
+
+/**
+ * Which list a tracked question belongs to. "existing": the question one of
+ * the client's published articles answers (shown first). "planned": questions
+ * for planned articles and suggestions, per topic (shown after).
+ */
+export type QuestionGroup = "existing" | "planned";
 
 // GT → CMS citation run result (CONTRACT-2.md §2).
 export interface CitationCheck {
@@ -364,6 +377,13 @@ export interface TrackedQuestionView {
   topic: string;
   question: string;
   source: "ai" | "team" | "client" | "recommendation" | "article";
+  group: QuestionGroup;
+  /** existing: the article it belongs to (title without the site-name suffix). */
+  pageTitle: string | null;
+  /** existing: the article's live address on the client's site (null when it isn't crawled yet). */
+  pageUrl: string | null;
+  /** existing: snapshot node id, so the map can open it. */
+  pageId: string | null;
   /** Latest run, per engine. Empty until the first run includes this question. */
   checks: Array<{ engine: CitationEngine; ok: boolean; clientCited: boolean; clientMentioned: boolean; citedDomains: string[] }>;
 }
@@ -375,8 +395,10 @@ export interface CitationsView {
   generatedAt: string | null;
   engines: CitationEngine[];
   questions: TrackedQuestionView[];
-  /** Per topic authority key, latest run. */
+  /** Per topic authority key, latest run (both groups). */
   byTopic: Record<string, { questions: number; checks: number; cited: number }>;
+  /** Latest run, per group: existing articles first, then planned/suggested. */
+  groups: Record<QuestionGroup, { questions: number; checks: number; cited: number }>;
   /** Oldest → newest completed runs (max 12). */
   trend: Array<{ generatedAt: string; checks: number; cited: number }>;
   topDomains: Array<{ domain: string; count: number }>;

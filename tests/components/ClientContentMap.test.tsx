@@ -282,7 +282,16 @@ describe("ClientContentMap · living layer", () => {
     expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual(["Approach", "Map", "Gap matrix", "AI citations", "Link opportunities", "Write next"]);
     expect(screen.getByTestId("citations-grid")).toBeInTheDocument();
     expect(screen.getAllByTestId("cite-cell")).toHaveLength(living.citations.questions.length * 4);
-    expect(screen.getByText("Google AI Overviews")).toBeInTheDocument();
+    // Two sections: existing articles first, then planned/suggested.
+    const existing = screen.getByTestId("citations-group-existing");
+    const planned = screen.getByTestId("citations-group-planned");
+    expect(existing.compareDocumentPosition(planned) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(existing).toHaveTextContent("Your published articles · 5");
+    expect(planned).toHaveTextContent("Planned and suggested, by topic · 10");
+    const firstExisting = living.citations.questions.find((q) => q.group === "existing")!;
+    expect(within(existing).getByRole("link", { name: `Article: ${firstExisting.pageTitle} ↗` })).toHaveAttribute("href", firstExisting.pageUrl);
+    expect(within(existing).queryByLabelText(/Add a question to/)).toBeNull();
+    expect(screen.getAllByText("Google AI Overviews").length).toBeGreaterThan(0);
     expect(screen.getAllByTestId("refresh-item")).toHaveLength(2);
     fireEvent.change(screen.getByLabelText("Add a question to cost"), { target: { value: "How much does a Vietnam team cost?" } });
     fireEvent.click(screen.getAllByRole("button", { name: "Add question" })[3] as HTMLElement);

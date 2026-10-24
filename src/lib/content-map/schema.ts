@@ -167,4 +167,11 @@ export const CONTENT_MAP_SCHEMA: readonly [string, string][] = [
   ["content_map_placement_checks_client_idx", "CREATE INDEX IF NOT EXISTS `content_map_placement_checks_client_idx` ON `content_map_placement_checks` (`client_id`)"],
   ["content_map_placement_checks_updated_at_idx", "CREATE INDEX IF NOT EXISTS `content_map_placement_checks_updated_at_idx` ON `content_map_placement_checks` (`updated_at`)"],
   ["content_map_placement_checks_created_at_idx", "CREATE INDEX IF NOT EXISTS `content_map_placement_checks_created_at_idx` ON `content_map_placement_checks` (`created_at`)"],
+  // Two question groups (2026-10-24): existing articles first, then planned/suggested.
+  ["content_map_questions.question_group", "ALTER TABLE `content_map_questions` ADD `question_group` text"],
+  ["content_map_questions.blog_post_id", "ALTER TABLE `content_map_questions` ADD `blog_post_id` integer REFERENCES `blog_posts`(`id`) ON DELETE set null"],
+  ["content_map_questions.page_id", "ALTER TABLE `content_map_questions` ADD `page_id` text"],
+  ["content_map_questions.page_title", "ALTER TABLE `content_map_questions` ADD `page_title` text"],
+  ["content_map_questions_question_group_idx", "CREATE INDEX IF NOT EXISTS `content_map_questions_question_group_idx` ON `content_map_questions` (`question_group`)"],
+  ["content_map_questions_blog_post_idx", "CREATE INDEX IF NOT EXISTS `content_map_questions_blog_post_idx` ON `content_map_questions` (`blog_post_id`)"],
 ];

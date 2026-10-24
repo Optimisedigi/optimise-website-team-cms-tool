@@ -158,9 +158,18 @@ function cleanCitations(c: CitationsView): CitationsView {
       topic: q.topic,
       question: q.question,
       source: q.source,
+      group: q.group === "existing" ? "existing" : "planned",
+      // The client's own published article: its title and public address are fine to show.
+      pageTitle: q.pageTitle ?? null,
+      pageUrl: q.pageUrl ?? null,
+      pageId: q.pageId ?? null,
       checks: q.checks.map((k) => ({ engine: k.engine, ok: k.ok, clientCited: k.clientCited, clientMentioned: k.clientMentioned, citedDomains: [...k.citedDomains] })),
     })),
     byTopic: Object.fromEntries(Object.entries(c.byTopic).map(([k, v]) => [k, { questions: v.questions, checks: v.checks, cited: v.cited }])),
+    groups: {
+      existing: { questions: c.groups?.existing.questions ?? 0, checks: c.groups?.existing.checks ?? 0, cited: c.groups?.existing.cited ?? 0 },
+      planned: { questions: c.groups?.planned.questions ?? 0, checks: c.groups?.planned.checks ?? 0, cited: c.groups?.planned.cited ?? 0 },
+    },
     trend: c.trend.map((t) => ({ generatedAt: t.generatedAt, checks: t.checks, cited: t.cited })),
     topDomains: c.topDomains.map((d) => ({ domain: d.domain, count: d.count })),
     refresh: c.refresh.map((r) => ({ id: r.id, nodeId: r.nodeId, topic: r.topic, question: r.question, missing: [...r.missing], sources: cleanSources(r.sources), why: r.why })),

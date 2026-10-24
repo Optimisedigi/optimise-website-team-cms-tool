@@ -162,7 +162,7 @@ export async function buildContentMapState(
     })),
     plan,
     suggestions: suggestionDocs.map(toSuggestionView),
-    citations: buildCitationsView({ latest: citationState.latest, completed: citationState.completed, questions: questionDocs, authorities }),
+    citations: buildCitationsView({ latest: citationState.latest, completed: citationState.completed, questions: questionDocs, authorities, snapshot }),
     // A research idea whose plan item merged into another points at the kept one.
     research: researchState.research
       ? { ...researchState.research, ideas: researchState.research.ideas.map((i) => (i.planItemId && aliases[i.planItemId] ? { ...i, planItemId: aliases[i.planItemId] ?? i.planItemId } : i)) }
