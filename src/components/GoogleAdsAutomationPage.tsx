@@ -14,6 +14,9 @@ type SearchIncident = {
 
 type AutomationEvent = {
   id: number;
+  /** Every change in this batch; a bulk script run is one row. */
+  eventIds?: number[];
+  count?: number;
   client?: { id: number; name?: string } | number | null;
   customerId?: string | null;
   changeDateTime?: string | null;
@@ -122,13 +125,16 @@ export default function GoogleAdsAutomationPage() {
     [events],
   );
 
-  async function flag(id: number) {
+  async function flag(event: AutomationEvent) {
+    const id = event.id;
     setFlagging(id);
     try {
       const response = await fetch(`/api/google-ads-automation/${id}/flag`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
+        body: JSON.stringify(
+          (event.count ?? 1) > 1 ? { eventIds: event.eventIds, summary: event.summary } : {},
+        ),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data?.error || "Flag failed");
@@ -241,6 +247,11 @@ export default function GoogleAdsAutomationPage() {
                         Not ours
                       </span>
                     )}
+                    {(event.count ?? 1) > 1 && (
+                      <span style={{ background: "#e2e8f0", color: "#334155", borderRadius: 4, padding: "1px 6px", marginRight: 6, fontSize: 11, fontWeight: 700 }}>
+                        {event.count} changes
+                      </span>
+                    )}
                     {event.summary || event.changeResourceType || "Change"}
                   </td>
                   <td style={{ padding: "8px 6px", whiteSpace: "nowrap" }}>
@@ -258,7 +269,7 @@ export default function GoogleAdsAutomationPage() {
                     {event.reviewStatus === "flagged" ? (
                       <span style={{ color: "#0f766e", fontWeight: 700 }}>Flagged</span>
                     ) : (
-                      <button type="button" className="od-settings__btn" disabled={flagging === event.id} onClick={() => void flag(event.id)}>
+                      <button type="button" className="od-settings__btn" disabled={flagging === event.id} onClick={() => void flag(event)}>
                         {flagging === event.id ? "Flagging…" : "Flag for review"}
                       </button>
                     )}

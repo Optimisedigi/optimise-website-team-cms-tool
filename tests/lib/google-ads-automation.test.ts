@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { normaliseChangeEvent } from "@/lib/google-ads-automation/fetch";
 import { isGoogleAutomated, sourceLabel, summariseChangeEvent } from "@/lib/google-ads-automation/summarise";
 import { sumWindow, normaliseDailyMetrics } from "@/lib/google-ads-automation/impact";
+import { groupAutomationEvents } from "@/lib/google-ads-automation/group";
 import { buildEventDoc, cronWindow, normaliseCustomerId, runGoogleAdsAutomationCron } from "@/lib/google-ads-automation/cron";
 
 vi.mock("@/payload.config", () => ({ default: Promise.resolve({}) }));
@@ -309,5 +310,51 @@ describe("summariseChangeEvent field resolution", () => {
         newValues: { campaign: { name: "New" } },
       }),
     ).toBe("Google Ads script renamed the campaign from Old to New.");
+  });
+});
+
+describe("groupAutomationEvents", () => {
+  const bidEvent = (id: number, before: number, after: number, at = "2026-10-23 20:38:47.532179") => ({
+    id,
+    client: 7,
+    customerId: "3425353766",
+    changeDateTime: at,
+    changeResourceType: "AD_GROUP_CRITERION",
+    resourceChangeOperation: "UPDATE",
+    clientType: "GOOGLE_ADS_SCRIPTS",
+    userEmail: "peter@optimisedigital.online",
+    changedFields: ["cpcBidMicros"],
+    oldValues: { adGroupCriterion: { cpcBidMicros: String(before) } },
+    newValues: { adGroupCriterion: { cpcBidMicros: String(after) } },
+    isGoogleAutomated: true,
+    reviewStatus: "unreviewed",
+  });
+
+  it("collapses one script run into a single row with a count", () => {
+    const rows = groupAutomationEvents([
+      bidEvent(1, 15_710_000, 11_780_000),
+      bidEvent(2, 16_170_000, 12_130_000),
+      bidEvent(3, 10_160_000, 7_620_000),
+    ]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ id: 1, count: 3, eventIds: [1, 2, 3] });
+    expect(rows[0]?.summary).toBe("Google Ads script updated 3 keywords (max CPC bid lowered by 25%).");
+  });
+
+  it("keeps separate runs apart and reports mixed directions", () => {
+    const rows = groupAutomationEvents([
+      bidEvent(1, 10_000_000, 8_000_000, "2026-10-23 20:38:47"),
+      bidEvent(2, 10_000_000, 12_000_000, "2026-10-23 20:38:47"),
+      bidEvent(3, 10_000_000, 13_300_000, "2026-10-18 23:38:00"),
+    ]);
+    expect(rows).toHaveLength(2);
+    expect(rows[0]?.summary).toBe("Google Ads script updated 2 keywords (max CPC bid lowered on 1, raised on 1).");
+    expect(rows[1]?.count).toBe(1);
+    expect(rows[1]?.summary).toBe("Google Ads script updated the keyword from $10 to $13.3.");
+  });
+
+  it("is flagged only when every event in the batch is flagged", () => {
+    const partly = groupAutomationEvents([{ ...bidEvent(1, 1, 2), reviewStatus: "flagged" }, bidEvent(2, 1, 2)]);
+    expect(partly[0]?.reviewStatus).toBe("unreviewed");
   });
 });

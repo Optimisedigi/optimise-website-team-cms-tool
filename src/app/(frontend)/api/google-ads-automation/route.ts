@@ -4,9 +4,11 @@ import { getPayload, type Where } from "payload";
 
 import config from "@/payload.config";
 import { userHasFeature } from "@/lib/access";
-import { summariseChangeEvent } from "@/lib/google-ads-automation/summarise";
+import { groupAutomationEvents, type GroupableEvent } from "@/lib/google-ads-automation/group";
 
 const MAX_LIMIT = 200;
+/** Raw change events read per request before grouping into batch rows. */
+const RAW_EVENT_CAP = 5000;
 
 /** Feed for /admin/google-ads-automation. Filters: client, source, resource
  *  type, date range; Google-made changes only unless `all=1`. */
@@ -45,46 +47,58 @@ export async function GET(req: NextRequest) {
     const limit = Math.min(MAX_LIMIT, Math.max(1, Number(params.get("limit") || 100) || 100));
     const page = Math.max(1, Number(params.get("page") || 1) || 1);
 
+    // Bulk operations (a script touching every keyword) arrive as one event per
+    // resource, so read raw events up to a cap, collapse each batch into one
+    // row, then page over the grouped rows.
     const result = await payload.find({
       collection: "google-ads-automation-events",
       where: and.length > 0 ? { and } : {},
       sort: "-changeDateTime",
-      limit,
-      page,
-      depth: 1,
+      limit: RAW_EVENT_CAP,
+      pagination: false,
+      depth: 0,
       overrideAccess: false,
       user,
     });
+    const rawDocs = result.docs as unknown as GroupableEvent[];
+    const grouped = groupAutomationEvents(rawDocs);
 
-    const events = result.docs.map((doc) => {
-      const row = doc as {
-        changeResourceType?: string | null;
-        resourceChangeOperation?: string | null;
-        clientType?: string | null;
-        campaignName?: string | null;
-        changedFields?: unknown;
-        oldValues?: unknown;
-        newValues?: unknown;
-      };
+    const totalDocs = grouped.length;
+    const totalPages = Math.max(1, Math.ceil(totalDocs / limit));
+    const pageRows = grouped.slice((page - 1) * limit, page * limit);
+
+    const clientIds = [...new Set(pageRows.map((row) => row.client).filter((id): id is number | string => typeof id === "number" || typeof id === "string"))];
+    const clientNames = new Map<string, string>();
+    if (clientIds.length > 0) {
+      const clients = await payload.find({
+        collection: "clients",
+        where: { id: { in: clientIds } },
+        limit: clientIds.length,
+        depth: 0,
+        pagination: false,
+        overrideAccess: false,
+        user,
+      });
+      for (const client of clients.docs as Array<{ id: number | string; name?: string | null }>) {
+        clientNames.set(String(client.id), client.name || "");
+      }
+    }
+
+    const events = pageRows.map((row) => {
+      const id = typeof row.client === "number" || typeof row.client === "string" ? row.client : null;
       return {
-        ...doc,
-        summary: summariseChangeEvent({
-          changeResourceType: row.changeResourceType,
-          resourceChangeOperation: row.resourceChangeOperation,
-          clientType: row.clientType,
-          campaignName: row.campaignName,
-          changedFields: Array.isArray(row.changedFields) ? row.changedFields : null,
-          oldValues: row.oldValues,
-          newValues: row.newValues,
-        }),
+        ...row,
+        client: id === null ? null : { id, name: clientNames.get(String(id)) || undefined },
       };
     });
 
     const response = NextResponse.json({
       events,
-      totalDocs: result.totalDocs,
-      page: result.page,
-      totalPages: result.totalPages,
+      totalDocs,
+      page,
+      totalPages,
+      rawEventCount: rawDocs.length,
+      truncated: rawDocs.length >= RAW_EVENT_CAP,
     });
     response.headers.set("Cache-Control", "no-store");
     return response;
