@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { InfoNote } from './InfoNote'
-import { COSTS_IMPORTED_EVENT } from '@/lib/finance/events'
 import { excludeCostAccounts, type PnlMonth, type PnlTotals } from '@/lib/finance/monthly-pnl'
 
 export type XeroUnavailableReason = 'not_configured' | 'not_deployed' | 'not_connected' | 'scope_missing' | 'error'
@@ -117,12 +116,6 @@ export function SalesVsCostsPanel({
     const controller = new AbortController()
     load({ from, to }, controller.signal)
     return () => controller.abort()
-  }, [from, to, load])
-
-  useEffect(() => {
-    const onImported = () => load({ from, to })
-    window.addEventListener(COSTS_IMPORTED_EVENT, onImported)
-    return () => window.removeEventListener(COSTS_IMPORTED_EVENT, onImported)
   }, [from, to, load])
 
   const periodText = toDate ? `${label}, year to date` : label

@@ -241,7 +241,6 @@ import { default as default_d3b30bd20de808698cb99493727faafc } from '../../../co
 import { default as default_54545d17487007f83f65ecb3f857577d } from '../../../components/RoleBodyClass'
 import { default as default_53051385132d7c282b9e348f060d29d1 } from '../../../components/ResetDocumentTabsOnOpen'
 import { default as default_e842b8d1d5d4fd0e0c4e3c9f6c6394a5 } from '../../../components/ListRowClick'
-import { default as default_950c4c2c6855f378d38cbbbadf952a4b } from '../../../components/CostCsvDropImport'
 import { CountdownLoginView as CountdownLoginView_a29937ebd9daff3184de85a6227ffba4 } from '../../../components/login/CountdownLoginView'
 import { CollectionCards as CollectionCards_f9c02e79a4aed9a3924487c0cd4cafb1 } from '@payloadcms/next/rsc'
 import { VercelBlobClientUploadHandler as VercelBlobClientUploadHandler_16c82c5e25f430251a3e3ba57219ff4e } from '@payloadcms/storage-vercel-blob/client'
@@ -491,7 +490,6 @@ export const importMap = {
   "./components/RoleBodyClass#default": default_54545d17487007f83f65ecb3f857577d,
   "./components/ResetDocumentTabsOnOpen#default": default_53051385132d7c282b9e348f060d29d1,
   "./components/ListRowClick#default": default_e842b8d1d5d4fd0e0c4e3c9f6c6394a5,
-  "./components/CostCsvDropImport#default": default_950c4c2c6855f378d38cbbbadf952a4b,
   "./components/login/CountdownLoginView#CountdownLoginView": CountdownLoginView_a29937ebd9daff3184de85a6227ffba4,
   "@payloadcms/next/rsc#CollectionCards": CollectionCards_f9c02e79a4aed9a3924487c0cd4cafb1,
   "@payloadcms/storage-vercel-blob/client#VercelBlobClientUploadHandler": VercelBlobClientUploadHandler_16c82c5e25f430251a3e3ba57219ff4e

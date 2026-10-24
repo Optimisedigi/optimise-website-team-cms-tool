@@ -169,7 +169,7 @@ export default buildConfig({
       beforeNav: ["./components/AdminNavSetup"],
       beforeNavLinks: ["./components/SidebarLogo"],
       afterNavLinks: ["./components/SidebarNavExtras"],
-      providers: ["./components/ViewportMeta", "./components/RocketLoader", "./components/FirstLoginSetup", "./components/DashboardGate", "./components/NavigationRecovery", "./components/IdleSessionKeepAlive", "./components/MiniSidebar", "./components/OptiMateLauncher", "./components/PayloadShiftSelect", "./components/ShowPasswordToggle", "./components/RoleBodyClass", "./components/ResetDocumentTabsOnOpen", "./components/ListRowClick", "./components/CostCsvDropImport"],
+      providers: ["./components/ViewportMeta", "./components/RocketLoader", "./components/FirstLoginSetup", "./components/DashboardGate", "./components/NavigationRecovery", "./components/IdleSessionKeepAlive", "./components/MiniSidebar", "./components/OptiMateLauncher", "./components/PayloadShiftSelect", "./components/ShowPasswordToggle", "./components/RoleBodyClass", "./components/ResetDocumentTabsOnOpen", "./components/ListRowClick"],
       beforeDashboard: ["./components/Dashboard"],
       views: {
         // Concept 4 "Countdown" login; keeps Payload's login endpoint + redirect rules.

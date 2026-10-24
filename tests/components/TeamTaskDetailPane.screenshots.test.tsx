@@ -42,7 +42,13 @@ describe('TeamTaskDetailPane screenshots', () => {
     expect(imageLink).toHaveAttribute('href', screenshot.url)
 
     fireEvent.mouseEnter(imageLink)
-    expect(screen.getByRole('tooltip')).toBeInTheDocument()
+    const preview = screen.getByRole('tooltip')
+    // Shrink-wrapped around the image, not a full-screen dark box.
+    expect(preview.style.inset).toBe('')
+    expect(preview.style.background).toBe('')
+    expect(preview.querySelector('img')?.style.maxWidth).toContain('100vw')
+    fireEvent.mouseLeave(imageLink)
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
   })
 
   it('uploads a selected image and refreshes the task screenshots', async () => {

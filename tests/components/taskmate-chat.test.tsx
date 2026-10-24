@@ -1,5 +1,5 @@
 import React from 'react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import TaskMateChat from '@/components/TaskMateChat'
 
@@ -25,6 +25,11 @@ describe('TaskMateChat', () => {
     vi.clearAllMocks()
     sessionStorage.clear()
     vi.stubGlobal('fetch', fetchMock)
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
   })
 
   it('shows the intro note without a light background, so its light text is readable on the dark panel', async () => {
@@ -55,6 +60,7 @@ describe('TaskMateChat', () => {
     fireEvent.click(generate)
     await waitFor(() => {
       const body = JSON.parse(fetchMock.mock.calls.find(([url, init]) => url === '/api/optimate/taskmate/chat' && init)?.[1]?.body as string)
+      expect(body.today).toMatch(/^\d{4}-\d{2}-\d{2}$/)
       expect(body.history).toEqual([
         { role: 'user', content: 'SEO review for Acme next week' },
         { role: 'assistant', content: 'I have noted the SEO review.' },
@@ -120,6 +126,83 @@ describe('TaskMateChat', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: 'Assign 1 task' })).toBeInTheDocument())
     expect(prompts.length).toBeGreaterThan(1)
     expect(prompts[1]).toContain('Admin (continued):')
+  })
+
+  describe('dropped screenshots', () => {
+    const png = (name = 'homepage.png') => new File(['png'], name, { type: 'image/png' })
+    const drop = (type: string, files: File[]) => {
+      const event = new Event(type, { bubbles: true, cancelable: true })
+      Object.defineProperty(event, 'dataTransfer', { value: { types: ['Files'], files, dropEffect: 'none' } })
+      return event
+    }
+
+    beforeEach(() => {
+      // jsdom has no layout or object URLs; the drop handler only needs "TaskMate is on screen".
+      vi.spyOn(HTMLElement.prototype, 'getClientRects').mockReturnValue([{ width: 100, height: 100 }] as unknown as DOMRectList)
+      vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: vi.fn(() => 'blob:preview'), revokeObjectURL: vi.fn() }))
+    })
+
+    it('attaches an image dropped into the window to the generated task once assigned', async () => {
+      fetchMock.mockImplementation((url: string, init?: RequestInit) => {
+        if (url === '/api/optimate/taskmate/chat' && !init) return Promise.resolve(response({ clients, users }))
+        if (url === '/api/optimate/taskmate/chat') return Promise.resolve(response({ reply: 'Review it.', stagedTaskList: staged, clients, users }))
+        if (url === '/api/optimate/taskmate/assign') return Promise.resolve(response({ count: 1, ids: [10] }))
+        if (url === '/api/team-tasks/10/screenshots') return Promise.resolve(response({ screenshot: {} }))
+        throw new Error(`Unexpected fetch ${url}`)
+      })
+      render(<TaskMateChat />)
+
+      fireEvent(window, drop('dragenter', [png()]))
+      expect(screen.getByText('Drop screenshots to attach them to the generated tasks')).toBeInTheDocument()
+      const dropEvent = drop('drop', [png()])
+      fireEvent(window, dropEvent)
+      expect(dropEvent.defaultPrevented).toBe(true)
+      expect(screen.getByRole('list', { name: 'Screenshots to attach' })).toHaveTextContent('homepage.png')
+
+      fireEvent.change(screen.getByLabelText('Message TaskMate'), { target: { value: 'SEO review for Acme' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+      await screen.findByText('Review it.')
+      expect(screen.getByLabelText('Attach homepage.png to SEO review')).toBeChecked()
+      fireEvent.click(screen.getByRole('button', { name: 'Assign 1 task' }))
+
+      expect(await screen.findByText('1 task assigned with 1 screenshot attached.')).toBeInTheDocument()
+      expect(screen.getByRole('link', { name: 'Open “SEO review”' })).toHaveAttribute('href', '/admin/collections/team-tasks?week=2026-08-17&task=10')
+      expect(screen.getByRole('link', { name: 'View task list' })).toHaveAttribute('href', '/admin/collections/team-tasks?week=2026-08-17')
+      const upload = fetchMock.mock.calls.find(([url]) => url === '/api/team-tasks/10/screenshots')
+      expect(upload?.[1]?.method).toBe('POST')
+      expect((upload?.[1]?.body as FormData).get('file')).toMatchObject({ name: 'homepage.png' })
+      expect(screen.queryByRole('list', { name: 'Screenshots to attach' })).not.toBeInTheDocument()
+    })
+
+    it('skips images unticked for a task', async () => {
+      fetchMock.mockImplementation((url: string, init?: RequestInit) => {
+        if (url === '/api/optimate/taskmate/chat' && !init) return Promise.resolve(response({ clients, users }))
+        if (url === '/api/optimate/taskmate/chat') return Promise.resolve(response({ reply: 'Review it.', stagedTaskList: staged, clients, users }))
+        if (url === '/api/optimate/taskmate/assign') return Promise.resolve(response({ count: 1, ids: [10] }))
+        throw new Error(`Unexpected fetch ${url}`)
+      })
+      render(<TaskMateChat />)
+      fireEvent(window, drop('drop', [png()]))
+      fireEvent.change(screen.getByLabelText('Message TaskMate'), { target: { value: 'SEO review for Acme' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+      fireEvent.click(await screen.findByLabelText('Attach homepage.png to SEO review'))
+      fireEvent.click(screen.getByRole('button', { name: 'Assign 1 task' }))
+      expect(await screen.findByText('1 task assigned.')).toBeInTheDocument()
+      expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/screenshots'))).toBe(false)
+    })
+
+    it('rejects non-image files and leaves drops another drop zone already handled', () => {
+      fetchMock.mockResolvedValue(response({ clients, users }))
+      render(<TaskMateChat />)
+
+      fireEvent(window, drop('drop', [new File(['a,b'], 'statement.csv', { type: 'text/csv' })]))
+      expect(screen.getByRole('alert')).toHaveTextContent('statement.csv is not a PNG, JPEG, or WebP image')
+
+      const handled = drop('drop', [png('upload-field.png')])
+      handled.preventDefault()
+      fireEvent(window, handled)
+      expect(screen.queryByText('upload-field.png')).not.toBeInTheDocument()
+    })
   })
 
   it('preserves an uncommitted review after assignment failure', async () => {

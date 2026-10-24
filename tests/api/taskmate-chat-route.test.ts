@@ -40,7 +40,8 @@ describe("TaskMate chat route", () => {
 
   it("grounds the agent with canonical clients, the complete assignable user set, and the configured general model", async () => {
     const { POST } = await import("@/app/(frontend)/api/optimate/taskmate/chat/route");
-    const response = await POST(postRequest({ message: "Plan next week", history: [{ role: "assistant", content: "Okay" }] }));
+    const today = new Date().toISOString().slice(0, 10);
+    const response = await POST(postRequest({ message: "Plan next week", history: [{ role: "assistant", content: "Okay" }], today }));
     expect(response.status).toBe(200);
     expect(payload.find).toHaveBeenCalledWith(expect.objectContaining({ collection: "clients", where: { isActive: { not_equals: false } } }));
     expect(runTaskMateChatTurn).toHaveBeenCalledWith(expect.objectContaining({
@@ -48,6 +49,7 @@ describe("TaskMate chat route", () => {
       users: [{ id: "7", name: "Alex", email: "alex@example.com", role: "staff" }],
       modelOverride: "gpt-5.6-luna",
       userId: 1,
+      today,
     }));
   });
 });

@@ -34,6 +34,14 @@ describe('Team Tasks TaskMate integration', () => {
     await waitFor(() => expect(fetchMock.mock.calls.some(([url]) => String(url).includes('weekStart=2026-08-24'))).toBe(true))
   })
 
+  it('opens the week named in the URL, as linked from TaskMate', async () => {
+    window.history.replaceState(null, '', '/admin/collections/team-tasks?week=2026-08-24')
+    fetchMock.mockResolvedValue(jsonResponse(grid(true)))
+    render(<TeamTasksSpreadsheet />)
+    await waitFor(() => expect(fetchMock.mock.calls.some(([url]) => String(url).includes('weekStart=2026-08-24'))).toBe(true))
+    window.history.replaceState(null, '', '/')
+  })
+
   it('puts Add task this week and + Add week on one row, roughly 75/25', async () => {
     fetchMock.mockResolvedValue(jsonResponse(grid(false)))
     render(<TeamTasksSpreadsheet />)

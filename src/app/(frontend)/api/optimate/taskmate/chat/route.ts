@@ -5,6 +5,7 @@ import config from "@/payload.config";
 import type { Message } from "@/lib/agents/_shared/llm/types";
 import { getOptiMateDefaultModels } from "@/lib/agents/_shared/optimate-default-models";
 import { runTaskMateChatTurn, type TaskMateClient, type TaskMateUser } from "@/lib/agents/taskmate";
+import { resolveTaskMateToday } from "@/lib/agents/taskmate/dates";
 import { isAssignableTeamTaskUser, toTeamTaskUserOption } from "@/lib/team-task-users";
 import { translateAgentError } from "@/lib/agents/optimate-google-ads/error-translator";
 
@@ -65,7 +66,7 @@ export async function POST(request: Request) {
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     if (user.role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-    const body = await request.json() as { message?: unknown; history?: unknown };
+    const body = await request.json() as { message?: unknown; history?: unknown; today?: unknown };
     const message = typeof body.message === "string" ? body.message.trim() : "";
     if (!message || message.length > MAX_MESSAGE_LENGTH) {
       return NextResponse.json({ error: `message must be 1-${MAX_MESSAGE_LENGTH} characters` }, { status: 400 });
@@ -89,6 +90,7 @@ export async function POST(request: Request) {
       users,
       userId: user.id,
       modelOverride: settings.defaultChatModel,
+      today: resolveTaskMateToday(body.today, new Date()),
     });
     return NextResponse.json({
       reply: result.reply,

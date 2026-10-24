@@ -3,7 +3,6 @@
 import { useEffect, useState, useRef } from 'react'
 import { InfoNote } from './InfoNote'
 import { useShiftSelect } from '@/lib/useShiftSelect'
-import { COSTS_IMPORTED_EVENT } from '@/lib/finance/events'
 import { SalesVsCostsPanel } from '@/components/SalesVsCostsPanel'
 import { YearEndEstimatePanel } from '@/components/YearEndEstimatePanel'
 import {
@@ -244,13 +243,6 @@ const BusinessCostsPage = () => {
   }
 
   useEffect(() => { fetchData(selectedMonth) }, [])
-
-  // Refresh when a CSV is dropped anywhere in the admin (CostCsvDropImport).
-  useEffect(() => {
-    const onImported = () => fetchData(selectedMonth)
-    window.addEventListener(COSTS_IMPORTED_EVENT, onImported)
-    return () => window.removeEventListener(COSTS_IMPORTED_EVENT, onImported)
-  }, [selectedMonth, viewSource])
 
   const handleMonthChange = (val: string) => {
     setSelectedMonth(val)

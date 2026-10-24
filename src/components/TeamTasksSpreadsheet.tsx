@@ -385,6 +385,12 @@ export default function TeamTasksSpreadsheet() {
     const params = new URLSearchParams(window.location.search)
     const task = params.get('task')
     if (task) setSelectedTaskId(task)
+    // TaskMate's "View task list" link opens the week it just assigned.
+    const week = params.get('week')
+    if (week && /^\d{4}-\d{2}-\d{2}$/.test(week) && mondayKey(new Date(`${week}T00:00:00`)) === week) {
+      setWeekMode('week')
+      setWeekStart(week)
+    }
   }, [])
 
   const groupedTasks = useMemo(() => {

@@ -57,6 +57,19 @@ const statuses = [
   ['task_postponed', 'Task Postponed'],
 ]
 
+// Natural size, capped to the viewport, so the preview is only as big as the image.
+const previewImageStyle: React.CSSProperties = {
+  display: 'block',
+  width: 'auto',
+  height: 'auto',
+  maxWidth: 'calc(100vw - 2 * clamp(16px, 4vw, 56px))',
+  maxHeight: 'calc(100vh - 2 * clamp(16px, 4vw, 56px))',
+  objectFit: 'contain',
+  borderRadius: 8,
+  border: '1px solid var(--theme-elevation-150)',
+  boxShadow: '0 18px 42px rgba(15,23,42,.3)',
+}
+
 const fieldStyle: React.CSSProperties = {
   width: '100%',
   border: '1px solid var(--theme-elevation-150)',
@@ -327,8 +340,9 @@ function ScreenshotPreview({ screenshot, removing, onRemove, onRename }: { scree
       </div>
       <button type="button" onClick={onRemove} disabled={removing} aria-label={`Delete ${screenshot.label} permanently`} style={{ ...fieldStyle, width: 38, color: '#991b1b', cursor: removing ? 'wait' : 'pointer' }}>{removing ? '…' : '×'}</button>
       {showPreview && (
-        <div role="tooltip" aria-label={`Large preview of ${screenshot.label}`} style={{ position: 'fixed', inset: 'clamp(16px, 4vw, 56px)', zIndex: 12, display: 'grid', placeItems: 'center', padding: 16, borderRadius: 14, border: '1px solid var(--theme-elevation-150)', background: 'rgba(15, 23, 42, .88)', boxShadow: '0 18px 42px rgba(15,23,42,.3)', pointerEvents: 'none', boxSizing: 'border-box' }}>
-          <img src={screenshot.url} alt="" style={{ display: 'block', maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: 8 }} />
+        // Shrink-wraps the image: a small screenshot gets a small preview, with no backdrop around it.
+        <div role="tooltip" aria-label={`Large preview of ${screenshot.label}`} style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 12, lineHeight: 0, pointerEvents: 'none' }}>
+          <img src={screenshot.url} alt="" style={previewImageStyle} />
         </div>
       )}
     </div>
