@@ -5,6 +5,7 @@ import { userHasFeature } from "@/lib/access";
 import { isAssignableTeamTaskUser } from "@/lib/team-task-users";
 import { relationshipKey } from "@/lib/relationship-id";
 import { isBareDoneComment } from "@/lib/team-task-mention-filter";
+import { markTeamTaskMentionsRead } from "@/lib/team-task-inbox";
 
 type UserOption = { id: string | number; name?: string | null; email?: string | null };
 
@@ -132,6 +133,12 @@ export async function POST(
     }).catch((error) => {
       console.error("[team-tasks/comments] notification error:", error);
     })));
+
+    // Replying on a task answers the author's own mentions on it, so clear
+    // them from the bell and the Team Tasks notifications tab.
+    await markTeamTaskMentionsRead(payload, user.id, id).catch((error) => {
+      console.error("[team-tasks/comments] mark mentions read error:", error);
+    });
 
     return NextResponse.json({ comment });
   } catch (error) {

@@ -120,7 +120,7 @@ describe('TeamTasksSpreadsheet permissions', () => {
       { id: 321, title: 'Publish weekly landing page' },
       { id: 321, dueDate: '2026-06-23' },
     ])
-    expect(fetchMock.mock.calls.filter(([, init]) => !init?.method)).toHaveLength(1)
+    expect(fetchMock.mock.calls.filter(([url, init]) => !init?.method && String(url).startsWith('/api/team-tasks/grid'))).toHaveLength(1)
     expect(screen.queryByText('Loading tasks…')).not.toBeInTheDocument()
   })
 

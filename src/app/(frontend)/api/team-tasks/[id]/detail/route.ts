@@ -3,7 +3,7 @@ import { getPayload } from "payload";
 import config from "@/payload.config";
 import { userHasFeature } from "@/lib/access";
 import { isAssignableTeamTaskUser, toTeamTaskUserOption } from "@/lib/team-task-users";
-import { coerceRelationshipKey } from "@/lib/relationship-id";
+import { coerceRelationshipKey, relationshipId } from "@/lib/relationship-id";
 
 
 async function getAuthedPayload(req: NextRequest) {
@@ -45,8 +45,23 @@ export async function GET(
       }),
     ]);
 
+    const clientId = relationshipId((task as { client?: unknown }).client);
+    const clientDoc = clientId == null
+      ? null
+      : await payload.findByID({
+        collection: "clients",
+        id: clientId,
+        depth: 0,
+        select: { name: true } as any,
+        overrideAccess: true,
+      }).catch((error) => {
+        console.error("[team-tasks/detail] client load error:", error);
+        return null;
+      });
+
     return NextResponse.json({
       task,
+      clientName: (clientDoc as { name?: string | null } | null)?.name || null,
       comments: commentsResult.docs,
       users: usersResult.docs.filter(isAssignableTeamTaskUser).map(toTeamTaskUserOption),
       currentUser: { id: user.id, name: user.name || user.email, email: user.email, role: user.role },

@@ -45,3 +45,35 @@ describe("team task comments route", () => {
     }));
   });
 });
+
+describe("team task comments route — replying clears your mentions", () => {
+  it("marks the author's unread mentions on that task as read after posting", async () => {
+    const update = vi.fn().mockResolvedValue({});
+    const create = vi.fn().mockResolvedValue({ id: 99, body: "On it" });
+    Object.assign(mockPayload, { update, create });
+    mockPayload.findByID.mockResolvedValue({ id: 42, title: "Blog images" });
+    mockPayload.find.mockImplementation(async (args: { collection: string }) => {
+      if (args.collection === "notifications") return { docs: [{ id: 7 }, { id: 8 }] };
+      return { docs: [] };
+    });
+
+    const { POST } = await import("@/app/(frontend)/api/team-tasks/[id]/comments/route");
+    const response = await POST(
+      new NextRequest("http://localhost/api/team-tasks/42/comments", { method: "POST", body: JSON.stringify({ body: "On it" }) }),
+      { params: Promise.resolve({ id: "42" }) },
+    );
+
+    expect(response.status).toBe(200);
+    expect(mockPayload.find).toHaveBeenCalledWith(expect.objectContaining({
+      collection: "notifications",
+      where: { and: [
+        { recipient: { equals: 1 } },
+        { kind: { equals: "team-task-mention" } },
+        { relatedTeamTask: { equals: "42" } },
+        { readAt: { exists: false } },
+      ] },
+    }));
+    expect(update.mock.calls.map(([args]) => args.id)).toEqual([7, 8]);
+    expect(update).toHaveBeenCalledWith(expect.objectContaining({ collection: "notifications", data: { readAt: expect.any(String) } }));
+  });
+});

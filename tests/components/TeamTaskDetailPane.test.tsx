@@ -100,4 +100,18 @@ describe("TeamTaskDetailPane scheduling", () => {
       .map((element) => element.textContent);
     expect(commentBodies).toEqual(["Newest update", "Original update"]);
   });
+
+  it("shows the task's client name in the header", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => response({
+      task: { ...initialTask, client: 7 },
+      clientName: "Acme Plumbing",
+      comments: [],
+      users: [],
+      currentUser: { id: 1, name: "Admin" },
+      canManage: true,
+    })));
+
+    render(<TeamTaskDetailPane taskId={42} onClose={vi.fn()} />);
+    expect(await screen.findByTestId("team-task-client")).toHaveTextContent("Client: Acme Plumbing");
+  });
 });

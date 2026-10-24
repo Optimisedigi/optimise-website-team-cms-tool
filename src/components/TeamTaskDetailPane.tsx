@@ -6,6 +6,7 @@ import { applyLinkShortcut } from '@/lib/rich-text-links'
 import { handleTeamTaskPaste } from '@/lib/team-task-paste'
 import { escapeHtml } from '@/lib/html-escape'
 import { relationshipIdString } from '@/lib/relationship-id'
+import { announceNotificationsChanged } from '@/lib/notifications-events'
 
 type Option = { id: string | number; name: string; email?: string; role?: string }
 type Rel = Option | string | number | null | undefined
@@ -42,6 +43,7 @@ type CommentRow = {
 
 type DetailResponse = {
   task: TeamTask
+  clientName?: string | null
   comments: CommentRow[]
   users: Option[]
   currentUser: Option
@@ -82,13 +84,13 @@ const fieldStyle: React.CSSProperties = {
 
 const relId = (value: unknown): string => relationshipIdString(value) ?? ''
 
-function relName(value: Rel, users: Option[]): string {
+export function relName(value: Rel, users: Option[]): string {
   const id = relId(value)
   if (value && typeof value === 'object') return value.name || value.email || id
   return users.find((user) => String(user.id) === id)?.name || id
 }
 
-function initials(value: Rel, users: Option[]): string {
+export function initials(value: Rel, users: Option[]): string {
   const name = relName(value, users) || 'User'
   return name.split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase()
 }
@@ -158,12 +160,12 @@ function linkifyHtml(value: string): string {
     .join('')
 }
 
-function htmlFromPlainText(value: string): string {
+export function htmlFromPlainText(value: string): string {
   if (value.includes('<')) return linkifyHtml(value)
   return value.split('\n').map((line) => line.trim() ? `<div>${linkifyText(escapeHtml(line))}</div>` : '<div><br /></div>').join('')
 }
 
-function stripHtml(value: string): string {
+export function stripHtml(value: string): string {
   return value.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim()
 }
 
@@ -211,7 +213,7 @@ function RichBox({ value, onSave, placeholder }: { value: string; onSave: (value
   )
 }
 
-function CommentComposer({ value, users, onChange }: { value: string; users: Option[]; onChange: (value: string) => void }) {
+export function CommentComposer({ value, users, onChange }: { value: string; users: Option[]; onChange: (value: string) => void }) {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const [query, setQuery] = useState<string | null>(null)
 
@@ -453,6 +455,8 @@ export default function TeamTaskDetailPane({ taskId, onClose, onTaskUpdated }: {
       if (!res.ok) throw new Error(json.error || 'Failed to post comment')
       setData((current) => current ? { ...current, comments: [json.comment, ...current.comments] } : current)
       setComment('')
+      // Replying marks your own mentions on this task read on the server.
+      announceNotificationsChanged()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to post comment')
     } finally {
@@ -593,6 +597,15 @@ export default function TeamTaskDetailPane({ taskId, onClose, onTaskUpdated }: {
         <div className="od-team-task-header" style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', padding: '20px 24px', borderBottom: '1px solid var(--theme-elevation-150)', position: 'sticky', top: 0, background: 'var(--theme-elevation-0, #fff)', zIndex: 2 }}>
           <div className="od-team-task-heading" style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, flex: '1 1 auto' }}>
             <strong style={{ fontSize: 18, whiteSpace: 'nowrap' }}>Task details</strong>
+            {task && (
+              <span
+                className="od-team-task-client"
+                data-testid="team-task-client"
+                style={{ fontSize: 14, fontWeight: 700, color: data?.clientName ? '#2563eb' : 'var(--theme-elevation-500)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}
+              >
+                {data?.clientName ? `Client: ${data.clientName}` : 'No client'}
+              </span>
+            )}
             {task ? (
               <input
                 value={titleDraft}

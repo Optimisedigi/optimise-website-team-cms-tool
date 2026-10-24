@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import TeamTaskDetailPane from './TeamTaskDetailPane'
+import TeamTaskInbox from './TeamTaskInbox'
+import { NOTIFICATIONS_CHANGED_EVENT } from '@/lib/notifications-events'
 import AdminStepNavSetter from './AdminStepNavSetter'
 import { TEAM_TASK_TYPE_OPTIONS } from '@/lib/team-task-options'
 import { isEmptyTeamTaskPlaceholder } from '@/lib/team-task-placeholder'
@@ -342,6 +344,8 @@ export default function TeamTasksSpreadsheet() {
   const [canManage, setCanManage] = useState(false)
   const [canEditTaskFields, setCanEditTaskFields] = useState(false)
   const [selectedTaskId, setSelectedTaskId] = useState<string | number | null>(null)
+  const [tab, setTab] = useState<'tasks' | 'notifications'>('tasks')
+  const [unreadTaskMentions, setUnreadTaskMentions] = useState(0)
   const latestLoadId = useRef(0)
 
   const load = async (requestedWeek = weekStart, requestedMode = weekMode, requestedStatus = statusFilter, requestedClient = clientFilter) => {
@@ -385,6 +389,7 @@ export default function TeamTasksSpreadsheet() {
     const params = new URLSearchParams(window.location.search)
     const task = params.get('task')
     if (task) setSelectedTaskId(task)
+    if (params.get('tab') === 'notifications') setTab('notifications')
     // TaskMate's "View task list" link opens the week it just assigned.
     const week = params.get('week')
     if (week && /^\d{4}-\d{2}-\d{2}$/.test(week) && mondayKey(new Date(`${week}T00:00:00`)) === week) {
@@ -392,6 +397,34 @@ export default function TeamTasksSpreadsheet() {
       setWeekStart(week)
     }
   }, [])
+
+  // Badge count for the Notifications tab; the inbox keeps it fresh while open.
+  useEffect(() => {
+    let cancelled = false
+    const refresh = async () => {
+      try {
+        const res = await fetch('/api/team-tasks/notifications')
+        const json = await res.json()
+        if (res.ok && !cancelled) setUnreadTaskMentions(Number(json.unreadTasks) || 0)
+      } catch {
+        // Badge keeps its last count.
+      }
+    }
+    void refresh()
+    window.addEventListener(NOTIFICATIONS_CHANGED_EVENT, refresh)
+    return () => {
+      cancelled = true
+      window.removeEventListener(NOTIFICATIONS_CHANGED_EVENT, refresh)
+    }
+  }, [])
+
+  const switchTab = (next: 'tasks' | 'notifications') => {
+    setTab(next)
+    const url = new URL(window.location.href)
+    if (next === 'notifications') url.searchParams.set('tab', 'notifications')
+    else url.searchParams.delete('tab')
+    window.history.replaceState(null, '', url.toString())
+  }
 
   const groupedTasks = useMemo(() => {
     const groups = new Map<string, TeamTask[]>()
@@ -551,6 +584,42 @@ export default function TeamTasksSpreadsheet() {
     <div className="od-team-tasks-page" style={{ padding: '24px 10px 40px', boxSizing: 'border-box' }}>
       <AdminStepNavSetter items={TEAM_TASKS_STEP_NAV} />
       <h1 style={{ margin: '0 0 14px', fontSize: 34 }}>Team Tasks</h1>
+      <div role="tablist" aria-label="Team Tasks views" className="od-team-tasks-tabs" style={{ display: 'flex', gap: 4, marginBottom: 14, borderBottom: '1px solid var(--theme-elevation-150)' }}>
+        {([['tasks', 'Tasks'], ['notifications', 'Notifications']] as const).map(([value, label]) => {
+          const active = tab === value
+          return (
+            <button
+              key={value}
+              type="button"
+              role="tab"
+              id={`od-team-tasks-tab-${value}`}
+              aria-selected={active}
+              aria-controls={`od-team-tasks-panel-${value}`}
+              tabIndex={active ? 0 : -1}
+              onClick={() => switchTab(value)}
+              onKeyDown={(e) => {
+                if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
+                e.preventDefault()
+                const next = value === 'tasks' ? 'notifications' : 'tasks'
+                switchTab(next)
+                document.getElementById(`od-team-tasks-tab-${next}`)?.focus()
+              }}
+              style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', marginBottom: -1, border: 0, borderBottom: `3px solid ${active ? '#2563eb' : 'transparent'}`, background: 'transparent', color: active ? 'inherit' : 'var(--theme-elevation-500)', fontSize: 15, fontWeight: 800, cursor: 'pointer' }}
+            >
+              {label}
+              {value === 'notifications' && unreadTaskMentions > 0 && (
+                <span aria-label={`${unreadTaskMentions} unread`} style={{ minWidth: 20, padding: '1px 7px', borderRadius: 999, background: '#dc2626', color: '#fff', fontSize: 12, fontWeight: 800, textAlign: 'center' }}>{unreadTaskMentions}</span>
+              )}
+            </button>
+          )
+        })}
+      </div>
+      {tab === 'notifications' ? (
+        <div role="tabpanel" id="od-team-tasks-panel-notifications" aria-labelledby="od-team-tasks-tab-notifications">
+          <TeamTaskInbox mobile={mobile} onOpenTask={openTask} onUnreadChange={setUnreadTaskMentions} />
+        </div>
+      ) : (
+      <div role="tabpanel" id="od-team-tasks-panel-tasks" aria-labelledby="od-team-tasks-tab-tasks">
       <div className="od-team-tasks-filters" style={{ display: 'grid', gridTemplateColumns: '150px 220px 180px 260px 1fr', gap: 8, alignItems: 'end', marginBottom: 10 }}>
         <label style={{ display: 'grid', gap: 4, fontSize: 12, color: 'var(--theme-elevation-500)', fontWeight: 700 }}>
           Weeks
@@ -816,6 +885,8 @@ export default function TeamTasksSpreadsheet() {
             <button type="button" onClick={() => void addWeek()} disabled={savingId === 'new'}>{savingId === 'new' ? 'Adding week…' : '+ Add week'}</button>
           </div>}
         </div>
+      )}
+      </div>
       )}
       {selectedTaskId && (
         <TeamTaskDetailPane
