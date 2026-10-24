@@ -176,6 +176,8 @@ const BlogPrompterPage = () => {
   const [clients, setClients] = useState<Client[]>([])
   const [selectedClientId, setSelectedClientId] = useState('')
   const [selectedBrief, setSelectedBrief] = useState<SavedBrief | null>(null)
+  // Deep link: /admin/blog/prompter?client=<id>&brief=<id> opens that brief (used by the Content Map).
+  const [pendingBriefId, setPendingBriefId] = useState<string | null>(null)
   const selectedBriefRef = useRef<HTMLDivElement>(null)
   const [deletingId, setDeletingId] = useState<string | number | null>(null)
   const [publishingId, setPublishingId] = useState<string | number | null>(null)
@@ -447,6 +449,36 @@ const BlogPrompterPage = () => {
   useEffect(() => () => {
     if (suggestTimerRef.current) clearInterval(suggestTimerRef.current)
   }, [])
+
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search)
+    const brief = q.get('brief')?.trim() || ''
+    const client = q.get('client')?.trim() || ''
+    if (!/^\d{1,12}$/.test(brief)) return
+    setPendingBriefId(brief)
+    if (/^\d{1,12}$/.test(client)) {
+      setSelectedClientId(client)
+      return
+    }
+    // Only the brief id (old /admin/collections/blog-prompts/:id links): find its client.
+    fetch(`/api/blog-prompts/${brief}?depth=0`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        const c = d?.client
+        const id = c && typeof c === 'object' ? c.id : c
+        if (id !== undefined && id !== null && id !== '') setSelectedClientId(String(id))
+      })
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    if (!pendingBriefId || !briefs.length) return
+    const match = briefs.find((b) => String(b.id) === pendingBriefId)
+    if (match) {
+      setPendingBriefId(null)
+      handleSelectBrief(match)
+    }
+  }, [briefs, pendingBriefId])
 
   useEffect(() => {
     fetch('/api/clients/list')

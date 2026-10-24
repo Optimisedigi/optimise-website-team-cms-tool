@@ -1,7 +1,9 @@
 import { useState } from "react";
+import { briefHref } from "@/lib/content-map/paths";
 import { type InProgressItem, type PlacementResult, RESEARCH_LAYER_LABELS, RESEARCH_LAYERS, type ResearchEvidence, type ResearchIdea, type ResearchLayer, type ResearchView } from "@/lib/content-map/types";
 import { fmtCount, fmtVolume, gscDropped, type MapModel, MUTED, placementLine, RED, shortDay } from "@/lib/content-map/view-model";
 import type { Audience } from "./ContentMapShell";
+import { useOpenAdminDoc } from "./AdminDocPanel";
 import { st } from "./st";
 import { ACTIVE_TAB, DARK_BTN, GHOST_BTN, LINK_BTN, MONO_LABEL, MonoTag } from "./ui";
 
@@ -286,21 +288,22 @@ export function ResearchList({ research, model, team }: { research: ResearchView
 }
 
 /** Articles already being written outside the plan, with where they fit. */
-export function InProgressList({ items, model, audience }: { items: readonly InProgressItem[]; model: MapModel; audience: Audience }) {
+export function InProgressList({ items, model, audience, clientId }: { items: readonly InProgressItem[]; model: MapModel; audience: Audience; clientId?: string }) {
   if (!items.length) return null;
   const isTeam = audience === "team";
+  const openDoc = useOpenAdminDoc();
   const name = (k: string) => model.T[k]?.name ?? k;
   return (
     <div data-testid="in-progress" style={st("display:flex;flex-direction:column;gap:8px")}>
       <div style={st(MONO_LABEL)}>In progress · {items.length}</div>
       {items.map((it) => {
-        const href = isTeam && it.cmsId ? `/admin/collections/${it.kind === "brief" ? "blog-prompts" : "blog-posts"}/${encodeURIComponent(it.cmsId)}` : null;
+        const href = isTeam && it.cmsId ? (it.kind === "brief" ? briefHref(it.cmsId, clientId) : `/admin/collections/blog-posts/${encodeURIComponent(it.cmsId)}`) : null;
         const p = it.placement;
         return (
           <div key={it.id} data-testid="in-progress-item" style={st("border:1px solid oklch(0.92 0.006 85);background:oklch(0.995 0.002 85);border-radius:11px;padding:12px;display:flex;flex-direction:column;gap:6px")}>
             <div style={st("display:flex;gap:8px;align-items:flex-start;font-size:13px;line-height:1.35")}>
               <span style={st(`width:8px;height:8px;border-radius:50%;flex:none;margin-top:5px;background:${p?.topic ? model.T[p.topic]?.c ?? MUTED : MUTED}`)} />
-              {href ? <a href={href} className="ccm-hul" style={st("font-weight:500;flex:1;color:inherit;text-decoration:none")}>{it.title}</a> : <span style={st("font-weight:500;flex:1")}>{it.title}</span>}
+              {href ? <a href={href} className="ccm-hul" onClick={openDoc ? (e) => { e.preventDefault(); openDoc({ href, title: it.kind === "brief" ? "Brief" : "Article" }); } : undefined} style={st("font-weight:500;flex:1;color:inherit;text-decoration:none")}>{it.title}</a> : <span style={st("font-weight:500;flex:1")}>{it.title}</span>}
               <MonoTag>{it.kind}</MonoTag>
             </div>
             {p ? (isTeam

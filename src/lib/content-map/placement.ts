@@ -18,6 +18,7 @@
 
 import { createHash } from "crypto";
 import { after } from "next/server";
+import { SENTENCE_CASE_RULE, sentenceCase } from "./sentence-case";
 import type { Payload } from "payload";
 import { authoritiesFromClient } from "./authorities";
 import { buildGscSignals, latestGsc, maybePullWeeklyGsc, needsDailyGsc, pullGsc, type GscPullResult } from "./gsc";
@@ -27,12 +28,14 @@ import { handOffInsights } from "./handoff";
 import { buildPlan } from "./plan";
 import {
   buildResearchView,
+  insightsIncomplete,
   latestCompletedResearch,
   latestResearchRow,
   MONTHLY_MIN_AGE_MS,
   parseResearchInsights,
   parseResearchResult,
   pollStaleResearchRun,
+  RESEARCH_TOPIC_MAX_ATTEMPTS,
   startResearchRun,
   type ResearchInsights,
   type ResearchRunResult,
@@ -315,34 +318,89 @@ export function evidenceReasons(evidence: readonly ResearchEvidence[]): PlanReas
   return out;
 }
 
-/** Terms that would identify a competitor: domains, their brand labels, page titles. */
-export function competitorTerms(pages: readonly CompetitorPage[]): string[] {
+/** Host parts that are suffixes, not the brand (com, com.au, co.uk, ...). */
+const SUFFIX_PARTS = new Set(["com", "net", "org", "io", "co", "au", "uk", "nz", "ca", "us", "gov", "edu", "info", "biz", "ai", "app", "dev", "me", "tv", "asn", "id", "in", "de", "fr", "eu", "sg"]);
+/** Words that make a label generic, not a brand (a label made only of these is ignored). */
+const GENERIC_LABEL_WORDS = [
+  "digital", "marketing", "growth", "agency", "agencies", "seo", "ads", "ad", "search", "performance", "academy", "institute", "blog", "blogs", "trends", "trend",
+  "brave", "transformation", "business", "media", "online", "web", "website", "websites", "social", "content", "data", "news", "insights", "insight", "group",
+  "solutions", "services", "service", "studio", "lab", "labs", "hub", "help", "support", "docs", "developers", "developer", "the", "my", "best", "top", "pro",
+  "smart", "first", "global", "local", "consulting", "consultants", "strategy", "strategies", "learn", "school", "guide", "guides", "tools", "tool", "software",
+  "tech", "technology", "cloud", "shop", "store", "design", "creative", "brand", "branding", "ppc", "sem", "email", "video", "mobile", "app", "apps", "ai", "geo",
+  "analytics", "traffic", "leads", "lead", "sales", "money", "smallbusiness", "small", "big", "world", "daily", "magazine", "review", "reviews", "wiki", "en", "au",
+  "and", "of", "for", "a", "co", "inc", "pty", "ltd", "official", "info", "click", "clicks", "rank", "ranking", "google", "facebook", "meta", "instagram", "youtube", "linkedin",
+];
+
+/** True when the label can be split entirely into generic or topic words ("digitaltransformation"). */
+function genericLabel(label: string, words: ReadonlySet<string>): boolean {
+  const l = label.replace(/[^a-z0-9]/g, "");
+  if (!l || /^\d+$/.test(l)) return true;
+  const ok: boolean[] = Array.from({ length: l.length + 1 }, (_, i) => i === 0);
+  for (let i = 1; i <= l.length; i++) {
+    for (let j = 0; j < i && !ok[i]; j++) if (ok[j] && words.has(l.slice(j, i))) ok[i] = true;
+  }
+  return ok[l.length] === true;
+}
+
+/** The registrable label of a host: `semrush` from www.semrush.com, `hubspot` from blog.hubspot.com. */
+export function registrableLabel(domain: string): string {
+  const host = domain.toLowerCase().replace(/^[a-z]+:\/\//, "").split(/[/:?#]/)[0] ?? "";
+  const parts = host.split(".").filter(Boolean);
+  while (parts.length > 1 && SUFFIX_PARTS.has(parts[parts.length - 1] ?? "")) parts.pop();
+  return parts[parts.length - 1] ?? "";
+}
+
+/**
+ * Brand labels that would identify a competitor (domain labels only, never
+ * page titles). Labels made only of generic marketing words or the client's
+ * topic words are ignored.
+ */
+export function competitorTerms(pages: readonly CompetitorPage[], topicWords: readonly string[] = []): string[] {
+  const words = new Set([...GENERIC_LABEL_WORDS, ...topicWords.flatMap((w) => normTitle(w).split(" ")).filter((w) => w.length > 1)]);
   const out = new Set<string>();
   for (const p of pages) {
-    const d = p.domain.toLowerCase().replace(/^www\./, "");
-    if (d) out.add(d);
-    const label = d.split(".")[0] ?? "";
-    if (label.length >= 4) out.add(label);
-    const t = normTitle(p.title ?? "");
-    if (t.length >= 12) out.add(t);
+    const label = registrableLabel(p.domain);
+    if (label.length < 3 || genericLabel(label, words)) continue;
+    out.add(label);
   }
-  return [...out];
+  return [...out].sort();
+}
+
+const escapeRe = (t: string) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+/** Whole-word, case-insensitive pattern for a brand label, its domain and hyphen/space forms. */
+function termPattern(term: string): RegExp {
+  const parts = term.split("-").filter(Boolean).map(escapeRe);
+  return new RegExp(`(?<![\\p{L}\\p{N}])${parts.join("[-\\s]?")}(?:\\.[a-z]{2,})*(?![\\p{L}\\p{N}])`, "giu");
 }
 
 function mentions(text: string, terms: readonly string[]): boolean {
-  const lower = text.toLowerCase();
-  const norm = normTitle(text);
-  return terms.some((t) => lower.includes(t) || norm.includes(t));
+  return terms.some((t) => termPattern(t).test(text));
 }
 
-/** Drop any brief text that names a competitor. */
+/** Remove competitor names from text, tidying the gaps they leave. */
+export function scrubText(text: string, terms: readonly string[]): string {
+  if (!terms.length || !mentions(text, terms)) return text;
+  let out = text;
+  for (const t of terms) out = out.replace(termPattern(t), "");
+  return out
+    .replace(/\(\s*\)/g, "")
+    .replace(/\s+([,.;:?!)])/g, "$1")
+    .replace(/(\()\s+/g, "$1")
+    .replace(/\b(vs\.?|versus|or|and|with|on|in|by|from|like)\s*([,.;:?!)]|$)/gi, "$2")
+    .replace(/\s{2,}/g, " ")
+    .replace(/^[\s,;:–—-]+|[\s,;:–—-]+$/g, "")
+    .trim();
+}
+
+/** Scrub competitor names out of every brief text (lines left empty are dropped). */
 export function scrubBrief(rec: SnapshotRecommendation, terms: readonly string[]): SnapshotRecommendation {
   if (!terms.length) return rec;
-  const s = (v: string) => (mentions(v, terms) ? "" : v);
-  const l = (v: readonly string[]) => v.filter((x) => !mentions(x, terms));
+  const s = (v: string) => scrubText(v, terms);
+  const l = (v: readonly string[]) => v.map(s).filter((x) => x.length > 0);
   return {
     ...rec,
-    question: s(rec.question) || rec.question.replace(/\S+\.\w{2,}\S*/g, "").trim(),
+    title: s(rec.title) || rec.title,
+    question: s(rec.question) || rec.question,
     why: s(rec.why),
     ...(rec.primaryKeyword ? { primaryKeyword: s(rec.primaryKeyword) || undefined } : {}),
     secondaryKeywords: l(rec.secondaryKeywords),
@@ -374,6 +432,7 @@ First discard every keyword, question or Search Console query that does not fit 
 Never name competitor websites, brands or page titles in any text you write.
 List keywords, questions and searchConsole queries exactly as given; competitorPages as the given numbers.
 
+${SENTENCE_CASE_RULE}
 Reply with JSON only:
 {"discarded":[""],"ideas":[{"title":"","question":"","keywords":[""],"questions":[""],"searchConsole":[""],"competitorPages":[0],${PLACEMENT_FIELDS},"priority":"high|medium|low","primaryKeyword":"","secondaryKeywords":[""],"outline":["H2 as a question"],"answerFirst":"40-60 words","entities":[""],"faqs":[""],"evidence":[""],"schema":["Article","FAQPage"]}]}`;
   const user = [
@@ -409,7 +468,32 @@ interface DraftIdea {
 }
 
 /** Validate one topic's model reply into ideas with code-built evidence. Bad topics / node ids are dropped. */
-export function parseResearchIdeas(json: unknown, ctx: PlacementContext, input: TopicResearchInput, terms: readonly string[]): DraftIdea[] {
+/** Why ideas were dropped while parsing one topic's reply (for the per-topic warning). */
+export interface ResearchParseStats {
+  raw: number;
+  invalid: number;
+  badPlacement: number;
+  noEvidence: number;
+  competitor: number;
+  duplicate: number;
+}
+
+export const emptyParseStats = (): ResearchParseStats => ({ raw: 0, invalid: 0, badPlacement: 0, noEvidence: 0, competitor: 0, duplicate: 0 });
+
+/** Plain words for a topic that ended with no ideas. */
+export function describeParseStats(st: ResearchParseStats): string {
+  if (!st.raw) return "The model returned no ideas";
+  const parts = [
+    st.noEvidence ? `${st.noEvidence} no evidence` : "",
+    st.badPlacement ? `${st.badPlacement} bad placement` : "",
+    st.competitor ? `${st.competitor} competitor term` : "",
+    st.duplicate ? `${st.duplicate} duplicate` : "",
+    st.invalid ? `${st.invalid} missing title/question` : "",
+  ].filter(Boolean);
+  return `${st.raw} ideas returned, all dropped (${parts.join(", ") || "none kept"})`;
+}
+
+export function parseResearchIdeas(json: unknown, ctx: PlacementContext, input: TopicResearchInput, terms: readonly string[], stats: ResearchParseStats = emptyParseStats()): DraftIdea[] {
   const list = isRecord(json) && Array.isArray(json.ideas) ? json.ideas : Array.isArray(json) ? json : [];
   const kwBy = new Map(input.keywords.map((k) => [normTitle(k.keyword), k]));
   const qBy = new Map(input.questions.map((q) => [normTitle(q.question), q]));
@@ -425,12 +509,30 @@ export function parseResearchIdeas(json: unknown, ctx: PlacementContext, input: 
   const authorityKeys = new Set(ctx.authorities.map((a) => a.key));
   const out: DraftIdea[] = [];
   for (const raw of list) {
-    if (!isRecord(raw)) continue;
-    const title = str(raw.title, 160);
-    const question = str(raw.question, 300);
-    if (title.length < 10 || !question || mentions(title, terms)) continue;
+    stats.raw++;
+    if (!isRecord(raw)) {
+      stats.invalid++;
+      continue;
+    }
+    const rawTitle = str(raw.title, 160);
+    const rawQuestion = str(raw.question, 300);
+    if (rawTitle.length < 10 || !rawQuestion) {
+      stats.invalid++;
+      continue;
+    }
+    // Competitor names are scrubbed out, not a reason to drop the idea.
+    const title = sentenceCase(scrubText(rawTitle, terms));
+    const scrubbedQuestion = sentenceCase(scrubText(rawQuestion, terms));
+    if (title.length < 10) {
+      stats.competitor++;
+      continue;
+    }
+    const question = scrubbedQuestion.length >= 5 ? scrubbedQuestion : title;
     const placed = validatePlacement(raw, title, ctx);
-    if (!placed) continue;
+    if (!placed) {
+      stats.badPlacement++;
+      continue;
+    }
     const pick = <T>(v: unknown, by: Map<string, T>) => [...new Set(strList(v, 40, 300).map(normTitle))].map((k) => by.get(k)).filter((x): x is T => Boolean(x));
     const keywords = pick(raw.keywords, kwBy);
     const questions = pick(raw.questions, qBy);
@@ -439,15 +541,21 @@ export function parseResearchIdeas(json: unknown, ctx: PlacementContext, input: 
     const kwSet = new Set(keywords.map((k) => normTitle(k.keyword)));
     const competitors = input.competitors.filter((p, i) => p.ok && (compIdx.includes(i) || kwSet.has(normTitle(p.keyword))));
     // Grounded only: an idea must rest on at least one real (kept) research input.
-    if (!keywords.length && !questions.length && !gsc.length) continue;
+    if (!keywords.length && !questions.length && !gsc.length) {
+      stats.noEvidence++;
+      continue;
+    }
     const { evidence, volume } = buildEvidence({ keywords, questions, competitors, gsc });
     const id = researchIdeaId(placed.topic, title);
-    if (out.some((d) => d.idea.id === id || normTitle(d.idea.title) === normTitle(title))) continue;
+    if (out.some((d) => d.idea.id === id || normTitle(d.idea.title) === normTitle(title))) {
+      stats.duplicate++;
+      continue;
+    }
     const idea: ResearchIdea = {
       ...finishPlacement(placed, ctx),
       id,
       title,
-      question: mentions(question, terms) ? title : question,
+      question,
       layers: [...new Set(evidence.map((e) => e.source))] as ResearchLayer[],
       evidence,
       volume,
@@ -590,7 +698,7 @@ const MAX_INPUT_GSC = 20;
 export function needsResearchInsights(doc: Doc | null | undefined, gscDoc: Doc | null): boolean {
   if (!doc || doc.status !== "completed" || !doc.result) return false;
   const insights = parseResearchInsights(doc.insights);
-  return !insights || insights.complete === false || insights.gscId !== (gscDoc ? String(gscDoc.id) : null);
+  return !insights || insightsIncomplete(insights) || insights.gscId !== (gscDoc ? String(gscDoc.id) : null);
 }
 
 /**
@@ -600,7 +708,7 @@ export function needsResearchInsights(doc: Doc | null | undefined, gscDoc: Doc |
 export function researchInsightsStalled(doc: Doc | null | undefined, now: number): boolean {
   if (!doc || doc.status !== "completed" || !doc.result) return false;
   const insights = parseResearchInsights(doc.insights);
-  if (insights && insights.complete !== false) return false;
+  if (insights && !insightsIncomplete(insights)) return false;
   const at = Date.parse(String(doc.generatedAt ?? ""));
   if (Number.isFinite(at) && now - at < INSIGHTS_HEAL_AFTER_MS) return false;
   const started = Date.parse(insights?.insightsStartedAt ?? "");
@@ -655,8 +763,8 @@ export async function writeResearchInsights(
 
   // Resume a partial pass for the same Search Console pull; otherwise start over.
   const stored = parseResearchInsights(fresh.insights);
-  const resume = stored && stored.complete === false && stored.gscId === gscId ? stored : null;
-  const prior = stored && stored.complete !== false ? stored : null;
+  const resume = stored && insightsIncomplete(stored) && stored.gscId === gscId ? stored : null;
+  const prior = stored && !resume && stored.complete !== false ? stored : null;
   const previousRun = prior ?? parseResearchInsights((await latestCompletedResearch(payload, clientId, 2)).find((d) => d.id !== doc.id)?.insights);
 
   const tasks: Array<{ topic: TopicAuthorityInput; input: TopicResearchInput }> = [];
@@ -676,6 +784,11 @@ export async function writeResearchInsights(
 
   const done = new Set(resume?.topicsDone ?? []);
   const failed = new Set<string>();
+  const failedReasons: Record<string, string> = {};
+  // Older rows (complete with failures, no attempts) count their failed topics as one attempt.
+  const attempts: Record<string, number> = { ...(resume?.topicAttempts ?? Object.fromEntries((resume?.topicsFailedKeys ?? []).map((k) => [k, 1]))) };
+  for (const k of resume?.topicsDone ?? []) attempts[k] ??= 1;
+  const sortedRecord = <T>(r: Record<string, T>): Record<string, T> => Object.fromEntries(Object.entries(r).sort(([a], [b]) => a.localeCompare(b)));
   const drafts: DraftIdea[] = (resume?.ideas ?? []).map((idea) => ({ idea, brief: resume?.briefs[idea.id] ?? null }));
   const dismissed = new Set([...(previousRun?.ideas ?? []), ...(resume?.ideas ?? [])].filter((i) => i.status === "dismissed").map((i) => normTitle(i.title)));
   let model = resume?.model ?? "";
@@ -693,6 +806,8 @@ export async function writeResearchInsights(
       topicsFailed: failed.size,
       topicsDone: tasks.map((t) => t.topic.key).filter((k) => done.has(k)),
       topicsFailedKeys: [...failed].sort(),
+      topicsFailedReasons: sortedRecord(failedReasons),
+      topicAttempts: sortedRecord(attempts),
       complete: false,
       insightsStartedAt: startedAt,
     };
@@ -714,10 +829,17 @@ export async function writeResearchInsights(
       const task = todo[next++];
       if (!task) break;
       const { topic, input } = task;
+      attempts[topic.key] = (attempts[topic.key] ?? 0) + 1;
       try {
         const res = await call(payload, { ...buildResearchPrompt(ctx, input, result.siteUrl), maxTokens: 8000, timeoutMs: RESEARCH_INSIGHTS_TIMEOUT_MS });
-        const parsed = parseResearchIdeas(extractJson(res.text), ctx, input, competitorTerms(input.competitors));
+        const stats = emptyParseStats();
+        const parsed = parseResearchIdeas(extractJson(res.text), ctx, input, competitorTerms(input.competitors, [topic.key, topic.name]), stats);
         if (!parsed.length) {
+          const reason = describeParseStats(stats);
+          console.warn(
+            `[content-map] research insights for "${topic.name}" kept no ideas (attempt ${attempts[topic.key]}): raw=${stats.raw} noEvidence=${stats.noEvidence} badPlacement=${stats.badPlacement} competitorTerm=${stats.competitor} duplicate=${stats.duplicate} invalid=${stats.invalid}`,
+          );
+          failedReasons[topic.key] = reason;
           failed.add(topic.key);
         } else {
           model ||= res.model;
@@ -725,7 +847,8 @@ export async function writeResearchInsights(
           done.add(topic.key);
         }
       } catch (err) {
-        console.warn(`[content-map] research insights for "${topic.name}" failed:`, (err as Error).message);
+        console.warn(`[content-map] research insights for "${topic.name}" failed (attempt ${attempts[topic.key]}):`, (err as Error).message);
+        failedReasons[topic.key] = `Model call failed: ${(err as Error).message}`.slice(0, 300);
         failed.add(topic.key);
       }
       await save(partial());
@@ -761,7 +884,10 @@ export async function writeResearchInsights(
     topicsFailed: failed.size,
     topicsDone: tasks.map((t) => t.topic.key).filter((k) => done.has(k)),
     topicsFailedKeys: [...failed].sort(),
-    complete: true,
+    topicsFailedReasons: sortedRecord(failedReasons),
+    topicAttempts: sortedRecord(attempts),
+    // Failed topics with attempts left keep the run open so self-heal retries just those.
+    complete: ![...failed].some((k) => (attempts[k] ?? 0) < RESEARCH_TOPIC_MAX_ATTEMPTS),
     insightsStartedAt: startedAt,
   };
   await payload.update({ collection: "content-map-research", id: doc.id as number, data: { insights } as never, overrideAccess: true });
@@ -847,7 +973,7 @@ export async function decideResearchIdea(
       const nodeIds = new Set((snapshot?.nodes ?? []).filter((n) => !n.agg).map((n) => n.id));
       const rec = toRecommendation(raw, { topic: idea.topic, index: 0, nodeIds, authorityKeys: new Set(authorities.map((a) => a.key)) });
       if (rec) {
-        const terms = competitorTerms((parseResearchResult(doc.result)?.topics ?? []).flatMap((t) => t.competitors.pages));
+        const terms = competitorTerms((parseResearchResult(doc.result)?.topics ?? []).flatMap((t) => t.competitors.pages), [idea.topic, ...authorities.map((a) => a.name)]);
         brief = scrubBrief({ ...rec, overlaps: idea.overlaps, why }, terms);
       }
     } catch (err) {

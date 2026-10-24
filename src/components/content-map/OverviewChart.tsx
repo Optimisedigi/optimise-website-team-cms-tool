@@ -1,5 +1,6 @@
 import type { ResearchLayer, ResearchView } from "@/lib/content-map/types";
-import { demandRings, fmtVolume, INK, type MapModel, MUTED, researchNewTopics, type SuggestionOverlay, sum } from "@/lib/content-map/view-model";
+import { Fragment } from "react";
+import { demandRings, fmtVolume, overviewLayerParts, INK, type MapModel, MUTED, researchNewTopics, type SuggestionOverlay, sum } from "@/lib/content-map/view-model";
 import type { ResearchSel } from "./research";
 import { st } from "./st";
 
@@ -103,13 +104,25 @@ export function OverviewChart({ model, active, pair, subDisplay, onSelect, onHov
             <div style={st(`position:absolute;top:${((ringOf.get(t.k)?.r ?? o.r) + 9) / 10}cqw;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:1px;white-space:nowrap`)}>
               <span style={st("font-size:max(10px,1.4cqw);font-weight:600")}>{o.name}</span>
               <span style={st(`font:max(9px,1.1cqw) 'JetBrains Mono',monospace;color:oklch(0.52 0.01 85);display:${subDisplay}`)}>{sub}</span>
-              {ringOf.get(t.k) || (compOn && !t.agg && research?.view.topics[t.k]?.competitorPages) ? (
-                <span style={st("font:max(9px,1.1cqw) 'JetBrains Mono',monospace;color:oklch(0.52 0.01 85)")}>
-                  {ringOf.get(t.k) ? <span data-testid={`demand-label-${t.k}`}>{`${fmtVolume(ringOf.get(t.k)?.volume ?? 0)}/mo`}</span> : null}
-                  {ringOf.get(t.k) && compOn && research?.view.topics[t.k]?.competitorPages ? " · " : null}
-                  {compOn && research?.view.topics[t.k]?.competitorPages ? <span data-testid={`competitors-${t.k}`}>{`${research.view.topics[t.k]?.competitorPages} competitor pages`}</span> : null}
-                </span>
-              ) : null}
+              {(() => {
+                const tr = research?.view.topics[t.k];
+                const parts: Array<{ key: string; text: string }> = [];
+                const ring = ringOf.get(t.k);
+                if (ring) parts.push({ key: "demand-label", text: `${fmtVolume(ring.volume)}/mo` });
+                if (compOn && !t.agg && tr?.competitorPages) parts.push({ key: "competitors", text: `${tr.competitorPages} competitor pages` });
+                if (research && layers && !t.agg) parts.push(...overviewLayerParts(t.k, research.view, layers));
+                if (!parts.length) return null;
+                return (
+                  <span style={st("font:max(9px,1.1cqw) 'JetBrains Mono',monospace;color:oklch(0.52 0.01 85)")}>
+                    {parts.map((p, ix) => (
+                      <Fragment key={p.key}>
+                        {ix ? " · " : null}
+                        <span data-testid={`${p.key}-${t.k}`}>{p.text}</span>
+                      </Fragment>
+                    ))}
+                  </span>
+                );
+              })()}
             </div>
           </div>
         ))}

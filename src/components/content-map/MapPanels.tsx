@@ -1,4 +1,5 @@
-import type { SnapshotLink } from "@/lib/content-map/types";
+import { useState } from "react";
+import type { SnapshotLink, SnapshotNodeMember } from "@/lib/content-map/types";
 import { bridgesFor, INK, type MapModel, type MapNode, MUTED, type PlanLike, RED, type SuggestionOverlay, sum, trunc } from "@/lib/content-map/view-model";
 import { DASHED } from "./living";
 import { st } from "./st";
@@ -168,6 +169,7 @@ export function MapPanels({ model, nav, recs, onNode, onPair, onBack, onHover, o
             </button>
           ))}
         </div>
+        <AggMembers model={model} members={head?.members} onNode={onNode} />
       </div>
     );
   }
@@ -252,5 +254,53 @@ export function MapPanels({ model, nav, recs, onNode, onPair, onBack, onHover, o
         ))}
       </div>
     </div>
+  );
+}
+
+/** Aggregate node: its member pages, the articles linking to each, and all articles linking into the group. */
+function AggMembers({ model, members, onNode }: { model: MapModel; members: SnapshotNodeMember[] | undefined; onNode: (i: number) => void }) {
+  const [open, setOpen] = useState<string | null>(null);
+  if (!members) return <div data-testid="agg-members-missing" style={st("font-size:12.5px;line-height:1.45;color:oklch(0.52 0.01 85)")}>Re-analyse to see the pages in this group and which articles link to them.</div>;
+  const { N, T } = model;
+  const article = (s: number, w: number, key: string) => {
+    const n = N[s];
+    if (!n) return null;
+    return (
+      <button type="button" key={key} data-testid="agg-article" className="ccm-hul" onClick={() => onNode(s)} style={st(`${LINK_BTN};display:flex;align-items:flex-start;gap:8px`)}>
+        <span style={st(`width:7px;height:7px;border-radius:50%;flex:none;margin-top:5px;background:${T[n.g]?.c ?? MUTED}`)} />
+        <span style={st("flex:1")}>{n.title}</span>
+        <span style={st("font:11px 'JetBrains Mono',monospace;color:oklch(0.52 0.01 85)")}>{w}</span>
+      </button>
+    );
+  };
+  const into = new Map<number, number>();
+  for (const m of members) for (const f of m.from) into.set(f.s, (into.get(f.s) ?? 0) + f.w);
+  const intoList = [...into.entries()].sort((a, b) => b[1] - a[1] || a[0] - b[0]);
+  return (
+    <>
+      <div data-testid="agg-members" style={st("display:flex;flex-direction:column;gap:4px")}>
+        <div style={st(`${MONO_LABEL};padding-bottom:4px`)}>Pages in this group · {members.length}</div>
+        {members.map((m) => (
+          <div key={m.id} style={st("display:flex;flex-direction:column;gap:2px")}>
+            <button type="button" data-testid="agg-member" aria-expanded={open === m.id} onClick={() => setOpen(open === m.id ? null : m.id)} style={st(`${LINK_BTN};display:flex;align-items:flex-start;gap:8px`)}>
+              <span style={st("font:11px 'JetBrains Mono',monospace;color:oklch(0.52 0.01 85);width:10px")}>{open === m.id ? "▾" : "▸"}</span>
+              <span style={st("flex:1")}>{m.t}</span>
+              <span style={st("font:11px 'JetBrains Mono',monospace;color:oklch(0.52 0.01 85)")}>{m.in} in</span>
+            </button>
+            {open === m.id ? (
+              <div style={st("padding-left:18px;display:flex;flex-direction:column")}>
+                {m.from.length ? m.from.slice().sort((a, b) => b.w - a.w || a.s - b.s).map((f) => article(f.s, f.w, `${m.id}-${f.s}`)) : <div style={st("font-size:12px;color:oklch(0.52 0.01 85)")}>No articles link here.</div>}
+              </div>
+            ) : null}
+          </div>
+        ))}
+      </div>
+      {intoList.length ? (
+        <div data-testid="agg-into" style={st("display:flex;flex-direction:column;gap:2px")}>
+          <div style={st(`${MONO_LABEL};padding-bottom:4px`)}>Articles linking into this group · {intoList.length}</div>
+          {intoList.map(([s, w]) => article(s, w, `into-${s}`))}
+        </div>
+      ) : null}
+    </>
   );
 }

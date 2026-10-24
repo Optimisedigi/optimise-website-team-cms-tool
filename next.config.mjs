@@ -21,7 +21,8 @@ const nextConfig = {
     },
     {
       source: '/admin/collections/blog-prompts/:id',
-      destination: '/admin/blog/prompter',
+      // Keep the id so the Blog Prompter opens that brief.
+      destination: '/admin/blog/prompter?brief=:id',
       permanent: false,
     },
   ],

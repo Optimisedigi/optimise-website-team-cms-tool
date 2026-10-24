@@ -1,5 +1,6 @@
 import type { Payload } from "payload";
 import { absoluteUrl } from "./decisions";
+import { sentenceCase } from "./sentence-case";
 import type { ContentMapSnapshot, PlanItem, SnapshotRecommendation } from "./types";
 
 export interface BriefData {
@@ -55,11 +56,11 @@ export function recommendationToBrief(input: {
   ];
   return {
     client: Number(input.clientId) || input.clientId,
-    blogIdea: rec.title,
-    titleIdea: rec.title,
+    blogIdea: sentenceCase(rec.title),
+    titleIdea: sentenceCase(rec.title),
     category: categoryFor(authority, input.blogCategories),
     mainPoint: [rec.question, rec.geo.answerFirst].filter(Boolean).join("\n\n"),
-    keyPoints: rec.outline.join("\n"),
+    keyPoints: rec.outline.map(sentenceCase).join("\n"),
     primaryKeywords: rec.primaryKeyword ?? "",
     secondaryKeywords: rec.secondaryKeywords.join(", "),
     supportingContent: [...links, ...(links.length ? [""] : []), ...geo, ...(ai.length ? ["", ...ai] : [])].join("\n"),

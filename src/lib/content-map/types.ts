@@ -48,6 +48,15 @@ export interface SnapshotNode {
   fit?: number;
   overlaps?: Array<{ k: string; s: number }>;
   words?: number;
+  /** Aggregate nodes only: the client's own pages in the group and the articles (`s` = index in snapshot.nodes) linking to each. */
+  members?: SnapshotNodeMember[];
+}
+
+export interface SnapshotNodeMember {
+  id: string;
+  t: string;
+  in: number;
+  from: Array<{ s: number; w: number }>;
 }
 
 export interface SnapshotLink {

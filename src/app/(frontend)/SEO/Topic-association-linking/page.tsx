@@ -5,7 +5,7 @@ import config from "@/payload.config";
 import { CONTENT_MAP_BASE_PATH, contentMapPath } from "@/lib/content-map/paths";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Topic association linking" };
+export const metadata = { title: "GEO - Topic associations" };
 
 const FONT_HREF = "https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap";
 const MUTED = "oklch(0.52 0.01 85)";
@@ -31,7 +31,7 @@ export default async function TopicAssociationLinkingIndex() {
       <link rel="stylesheet" href={FONT_HREF} precedence="default" />
       <header style={{ padding: "14px 24px", borderBottom: "1px solid oklch(0.9 0.006 85)", background: "oklch(0.995 0.002 85)", display: "flex", flexDirection: "column", gap: 3 }}>
         <div style={{ font: "500 11px 'JetBrains Mono',monospace", letterSpacing: ".08em", textTransform: "uppercase", color: MUTED }}>SEO · Internal link map</div>
-        <div style={{ fontSize: 20, fontWeight: 600, letterSpacing: "-.01em" }}>Topic association linking</div>
+        <div style={{ fontSize: 20, fontWeight: 600, letterSpacing: "-.01em" }}>GEO - Topic associations</div>
       </header>
       <main style={{ padding: "22px 24px", display: "flex", flexDirection: "column", gap: 8, maxWidth: 720 }}>
         {clients.length ? (

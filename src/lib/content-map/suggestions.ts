@@ -9,6 +9,7 @@
  * - dismiss         → status dismissed (+ reason, team only)
  */
 
+import { SENTENCE_CASE_RULE } from "./sentence-case";
 import type { Payload } from "payload";
 import { authoritiesFromClient, MAX_TOPIC_AUTHORITIES, slugifyAuthority, type AuthorityRow } from "./authorities";
 import { authorityTopics, toRecommendation } from "./ideas";
@@ -168,6 +169,7 @@ The article must:
 - ${s.kind === "bridge" ? "connect the two given topic authorities naturally, linking pages in both;" : "sit inside the given topic authority;"}
 - be planned for citation: a direct 40-60 word answer first, question-style H2s, named entities, FAQs, and evidence worth citing.
 
+${SENTENCE_CASE_RULE}
 Reply with JSON only, no prose:
 {"ideas":[{"title":"","question":"","why":"one or two sentences: the gap it fills","priority":"high|medium|low","overlaps":["other authority key"],"primaryKeyword":"","secondaryKeywords":[""],"outline":["H2 as a question"],"answerFirst":"40-60 words","entities":[""],"faqs":[""],"evidence":[""],"schema":["Article","FAQPage"],"linksTo":["page id"],"linksFrom":["page id"]}]}`;
   const user = [

@@ -6,6 +6,7 @@ import { loadLinkActions } from "./link-action";
 import { buildCitationsView, latestCompletedCitations, loadCitationState } from "./citations";
 import { buildPlanWithAliases, parseCitationsResult, parseInsights } from "./plan";
 import { loadResearchState, researchPlanItems } from "./placement";
+import { sentenceCase, sentenceCaseRec } from "./sentence-case";
 import { latestCompletedResearch, parseResearchInsights } from "./research";
 import { loadQuestions } from "./questions";
 import { loadDecisions, pollStaleRun, relId, RETAIN_COMPLETED } from "./snapshots";
@@ -151,7 +152,7 @@ export async function buildContentMapState(
           startedAt: (current.startedAt as string | null) ?? null,
         }
       : null,
-    snapshot,
+    snapshot: snapshot ? { ...snapshot, recommendations: snapshot.recommendations.map(sentenceCaseRec) } : null,
     decisions,
     termW: computeTermW(decisions, snapshots),
     sent,
@@ -160,12 +161,13 @@ export async function buildContentMapState(
       generatedAt: (d.generatedAt as string | null) ?? null,
       stats: (d.stats as SnapshotStats | null) ?? null,
     })),
-    plan,
+    // AI-written titles in sentence case (existing rows were stored in Title Case).
+    plan: plan.map(sentenceCaseRec),
     suggestions: suggestionDocs.map(toSuggestionView),
     citations: buildCitationsView({ latest: citationState.latest, completed: citationState.completed, questions: questionDocs, authorities, snapshot }),
     // A research idea whose plan item merged into another points at the kept one.
     research: researchState.research
-      ? { ...researchState.research, ideas: researchState.research.ideas.map((i) => (i.planItemId && aliases[i.planItemId] ? { ...i, planItemId: aliases[i.planItemId] ?? i.planItemId } : i)) }
+      ? { ...researchState.research, ideas: researchState.research.ideas.map((i) => ({ ...i, title: sentenceCase(i.title), question: sentenceCase(i.question), ...(i.planItemId && aliases[i.planItemId] ? { planItemId: aliases[i.planItemId] ?? i.planItemId } : {}) })) }
       : null,
     inProgress: researchState.inProgress,
   };

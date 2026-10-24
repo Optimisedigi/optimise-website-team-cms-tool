@@ -84,7 +84,7 @@ export function Approach({ model, snapshot, clientName, authorities, recs, sent,
   return (
     <div style={st(`display:grid;grid-template-columns:${cols};min-height:0;height:100%`)}>
       <main style={st("min-width:0;min-height:0;overflow:auto;padding:18px 22px 28px;display:flex;flex-direction:column;gap:22px")}>
-        <div style={st("display:flex;flex-direction:column;gap:8px;max-width:760px")}>
+        <div style={st("display:flex;flex-direction:column;gap:8px")}>
           <div style={st("font-size:17px;font-weight:600")}>{isClient ? "Our approach" : "The approach"}</div>
           <div style={st("font-size:14px;line-height:1.55;text-wrap:pretty")}>{lead}</div>
         </div>
@@ -125,7 +125,7 @@ export function Approach({ model, snapshot, clientName, authorities, recs, sent,
           </div>
         </div>
 
-        <div style={st("display:flex;flex-direction:column;gap:10px;max-width:760px")}>
+        <div style={st("display:flex;flex-direction:column;gap:10px;max-width:980px")}>
           <div style={st(MONO_LABEL)}>How we work</div>
           {STEPS.map(([title, text], ix) => (
             <div key={title} style={st("display:flex;gap:12px;align-items:flex-start")}>

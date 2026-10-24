@@ -408,7 +408,7 @@ export function ContentMapShell({ clientId, slug, variant = "embedded", audience
     : <LinkOpportunities model={oppModel} accepted={accepted} dismissed={dismissed} termW={termW} width={width} onDecide={(k, d, t) => void decide(k, d, t)} actions={actions} linkBusy={linkBusy} linkErrors={linkErrors} onDraft={(k, redo) => void draftLink(k, redo)} onApply={(k) => void applyLink(k)} />;
   else if (tab === "write") body = isClient
     ? <WriteNext model={mapModel} recs={recs} selected={recSel} sent={sent} sending={null} sendError={null} width={width} onSelect={setRecSel} onSend={() => undefined} onOpenNode={openNode} readOnly top={<ClientSuggestions model={mapModel} suggestions={suggestions} onSuggest={openSuggest} />} research={researchView} bottom={<>{researchView ? <ResearchList research={researchView} model={mapModel} /> : null}<InProgressList items={inProgress} model={mapModel} audience={audience} /></>} />
-    : <WriteNext model={mapModel} recs={recs} selected={recSel} sent={sent} sending={sending} sendError={sendError} width={width} onSelect={setRecSel} onSend={(id) => void send(id)} onOpenNode={openNode} ideas={{ by: snap.ai.ideas?.model ?? null, template: templateIdeas, pending: ideasExpected, busy: ideasBusy, error: ideasError, onWrite: () => void writeIdeas() }} top={teamSuggestions} research={researchView} bottom={<>{researchView ? <ResearchList research={researchView} model={mapModel} team={researchTeam} /> : null}<InProgressList items={inProgress} model={mapModel} audience={audience} /></>} />;
+    : <WriteNext model={mapModel} recs={recs} selected={recSel} sent={sent} sending={sending} sendError={sendError} width={width} onSelect={setRecSel} onSend={(id) => void send(id)} onOpenNode={openNode} ideas={{ by: snap.ai.ideas?.model ?? null, template: templateIdeas, pending: ideasExpected, busy: ideasBusy, error: ideasError, onWrite: () => void writeIdeas() }} top={teamSuggestions} research={researchView} bottom={<>{researchView ? <ResearchList research={researchView} model={mapModel} team={researchTeam} /> : null}<InProgressList items={inProgress} model={mapModel} audience={audience} clientId={clientId} /></>} clientId={clientId} />;
   else body = <MapView model={mapModel} view={tab} width={width} nav={nav} setNav={setNav} recs={recs} onRec={openRec} overlay={overlay} overviewTop={teamSuggestions} research={mapResearch} />;
 
   const failedWithSnap = !isClient && !!snap && data?.run?.status === "failed";
@@ -417,7 +417,7 @@ export function ContentMapShell({ clientId, slug, variant = "embedded", audience
       <link rel="stylesheet" href={FONT_HREF} precedence="default" />
       {/* One row: title · tabs in the middle · status, actions and stats. */}
       <header style={st(`display:flex;align-items:center;flex-wrap:wrap;gap:${tight ? 10 : 16}px;padding:12px ${tight ? 16 : 24}px;border-bottom:1px solid oklch(0.9 0.006 85);background:oklch(0.995 0.002 85)`)}>
-        <div style={st("font-size:20px;font-weight:600;letter-spacing:-.01em;white-space:nowrap")}>Topic associations</div>
+        <div style={st("font-size:20px;font-weight:600;letter-spacing:-.01em;white-space:nowrap")}>GEO - Topic associations</div>
         <div style={st("flex:1")} />
         {snap && mapModel ? (
           <div role="tablist" style={st("display:flex;gap:2px;padding:3px;border-radius:10px;background:oklch(0.94 0.006 85)")}>

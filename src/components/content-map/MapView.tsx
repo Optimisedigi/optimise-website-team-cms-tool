@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { ResearchLayer, ResearchView } from "@/lib/content-map/types";
-import { fmtCount, fmtVolume, gscDropped, ideaVisible, type MapModel, MUTED, type PlanLike, RED, type SuggestionOverlay } from "@/lib/content-map/view-model";
+import { emptyLayerNotes, fmtCount, fmtVolume, gscDropped, ideaVisible, type MapModel, MUTED, type PlanLike, RED, type SuggestionOverlay } from "@/lib/content-map/view-model";
 import type { Audience } from "./ContentMapShell";
 import { GapMatrix } from "./GapMatrix";
 import { type MapNav, MapPanels } from "./MapPanels";
@@ -64,6 +64,9 @@ export function MapView({ model, view, width, nav, setNav: setNavRaw, recs, onRe
   const active = hoverTopic || (topic?.agg ? topic.k : null);
   const focus = isTopic && topic && hover != null && topic.pos[hover] ? hover : nav.sel;
   const tipNode = isTopic && hover != null ? N[hover] : undefined;
+  const emptyNotes = rx && view === "map" && (!topic || isTopic)
+    ? emptyLayerNotes(rx.view, layers, { topic: isTopic && topic ? topic.k : null, topicKeys: model.topics.filter((t) => !T[t.k]?.agg).map((t) => t.k), nodeIds: isTopic && topic ? new Set(N.filter((n) => n.g === topic.k).map((n) => n.id)) : undefined })
+    : [];
   const hint = isTopic ? "Click an article to trace its links" : view === "map" ? "Hover to trace, click to open a topic" : "";
   return (
     <div style={st(`display:grid;grid-template-columns:${cols};min-height:0;height:100%`)}>
@@ -89,6 +92,11 @@ export function MapView({ model, view, width, nav, setNav: setNavRaw, recs, onRe
           <div style={st("flex:1")} />
           <span style={st("font-size:12px;color:oklch(0.52 0.01 85);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0")}>{hint}</span>
         </div>
+        {emptyNotes.length ? (
+          <div data-testid="layer-empty-notes" style={st("display:flex;flex-wrap:wrap;gap:2px 14px;padding:4px 22px 0;font:11px 'JetBrains Mono',monospace;color:oklch(0.52 0.01 85)")}>
+            {emptyNotes.map((n) => <span key={n}>{n}</span>)}
+          </div>
+        ) : null}
         {rview && research ? <LayerBar research={rview} layers={layers} onToggle={(l) => { if (layers.has(l)) setRsel(null); research.onToggle(l); }} team={research.team} /> : null}
         {view === "map" ? (
           <div style={st("flex:1;min-height:0;position:relative")}>

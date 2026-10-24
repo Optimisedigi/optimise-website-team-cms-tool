@@ -1,3 +1,6 @@
+import { useState } from "react";
+import { AdminDocContext, AdminDocPanel, type AdminDoc } from "./AdminDocPanel";
+import { briefHref } from "@/lib/content-map/paths";
 import type { ResearchView, SnapshotRecommendation } from "@/lib/content-map/types";
 import { BLUE, fmtCount, type MapModel, MUTED, type PlanLike, RED } from "@/lib/content-map/view-model";
 import { OriginTag, PlanEvidence, ReasonChips } from "./living";
@@ -26,6 +29,8 @@ interface Props {
   research?: ResearchView | null;
   /** Below the plan: the Research list and In progress. */
   bottom?: React.ReactNode;
+  /** Client id, so "Open brief" lands on that client's brief in the Blog Prompter. */
+  clientId?: string;
 }
 
 const PRIORITY_COLOUR: Record<SnapshotRecommendation["priority"], string> = { high: RED, medium: "oklch(0.62 0.14 62)", low: MUTED };
@@ -41,13 +46,14 @@ function Section({ label, items }: { label: string; items: string[] }) {
 }
 
 /** Write next tab: recommendations grouped by topic, with the selected brief on the right. */
-export function WriteNext({ model, recs, selected, sent, sending, sendError, width, onSelect, onSend, onOpenNode, ideas, readOnly = false, top, research, bottom }: Props) {
+export function WriteNext({ model, recs, selected, sent, sending, sendError, width, onSelect, onSend, onOpenNode, ideas, readOnly = false, top, research, bottom, clientId }: Props) {
   const { T, N, topics } = model;
   const cols = width < 1000 ? "minmax(0,1fr) 340px" : "minmax(0,1fr) 400px";
   const rec = recs.find((r) => r.id === selected) ?? recs[0];
   const byId = new Map(N.map((n) => [n.id, n]));
   const groups = topics.map((t) => ({ t, list: recs.filter((r) => r.topic === t.k) })).filter((g) => g.list.length);
   const sentId = rec ? sent[rec.id] : undefined;
+  const [doc, setDoc] = useState<AdminDoc | null>(null);
   const nodeLinks = (label: string, ids: string[]) => {
     if (!ids.length) return null;
     return (
@@ -66,7 +72,8 @@ export function WriteNext({ model, recs, selected, sent, sending, sendError, wid
     );
   };
   return (
-    <div style={st(`display:grid;grid-template-columns:${cols};min-height:0;height:100%`)}>
+    <AdminDocContext.Provider value={readOnly ? null : setDoc}>
+    <div style={st(`display:grid;grid-template-columns:${cols};min-height:0;height:100%;position:relative`)}>
       <main style={st("min-width:0;min-height:0;overflow:auto;padding:16px 22px 24px;display:flex;flex-direction:column;gap:14px")}>
         <div style={st("display:flex;align-items:baseline;flex-wrap:wrap;gap:6px 14px")}>
           <div style={st("font-size:15px;font-weight:600")}>{readOnly ? "Articles we're planning" : "What to write next"}</div>
@@ -127,7 +134,7 @@ export function WriteNext({ model, recs, selected, sent, sending, sendError, wid
                 {readOnly ? (
                   <span style={st(`font-size:12px;font-weight:500;color:${sentId ? "oklch(0.55 0.13 160)" : "oklch(0.52 0.01 85)"}`)}>{sentId ? "In progress" : "Planned"}</span>
                 ) : sentId ? (
-                  <span style={st("font-size:12px;font-weight:500;color:oklch(0.55 0.13 160)")}>Sent · <a href={`/admin/collections/blog-prompts/${sentId}`}>Open brief</a></span>
+                  <span style={st("font-size:12px;font-weight:500;color:oklch(0.55 0.13 160)")}>Sent · <button type="button" data-testid="open-brief" onClick={() => setDoc({ href: briefHref(sentId, clientId), title: "Brief" })} style={st("border:0;background:none;padding:0;cursor:pointer;font:inherit;color:oklch(0.5 0.15 258);text-decoration:underline")}>Open brief</button></span>
                 ) : (
                   <button type="button" disabled={sending === rec.id} onClick={() => onSend(rec.id)} style={st(`${DARK_BTN};opacity:${sending === rec.id ? 0.6 : 1}`)}>{sending === rec.id ? "Sending…" : "Send to Blog Prompter"}</button>
                 )}
@@ -158,6 +165,8 @@ export function WriteNext({ model, recs, selected, sent, sending, sendError, wid
           </div>
         ) : null}
       </aside>
+      {doc ? <AdminDocPanel doc={doc} onClose={() => setDoc(null)} /> : null}
     </div>
+    </AdminDocContext.Provider>
   );
 }

@@ -51,10 +51,31 @@ export interface ResearchInsights {
   topicsDone?: string[];
   /** Topic keys whose model call failed in the latest pass. */
   topicsFailedKeys?: string[];
+  /** Why each failed topic failed (latest pass). */
+  topicsFailedReasons?: Record<string, string>;
+  /** Model attempts per topic key (failed topics retry until RESEARCH_TOPIC_MAX_ATTEMPTS). */
+  topicAttempts?: Record<string, number>;
   /** false while topics are still missing or the final statuses haven't run; absent (older rows) = complete. */
   complete?: boolean;
   /** When the latest insights job started (self-heal de-duplication). */
   insightsStartedAt?: string;
+}
+
+/** A topic that failed is retried until it has had this many model attempts. */
+export const RESEARCH_TOPIC_MAX_ATTEMPTS = 3;
+
+/**
+ * Still work to do: explicitly partial, or finished with failed topics that
+ * have attempts left. Older rows (complete with failures, no topicAttempts)
+ * count as one attempt so far, so they retry too.
+ */
+export function insightsIncomplete(insights: ResearchInsights): boolean {
+  if (insights.complete === false) return true;
+  const failed = insights.topicsFailedKeys ?? [];
+  if (!failed.length) return false;
+  const attempts = insights.topicAttempts;
+  if (!attempts) return true;
+  return failed.some((k) => (attempts[k] ?? 1) < RESEARCH_TOPIC_MAX_ATTEMPTS);
 }
 
 export function parseResearchResult(value: unknown): ResearchResult | null {
@@ -75,6 +96,8 @@ export function parseResearchInsights(value: unknown): ResearchInsights | null {
     topicsFailed: typeof v.topicsFailed === "number" ? v.topicsFailed : 0,
     ...(Array.isArray(v.topicsDone) ? { topicsDone: v.topicsDone.filter((k): k is string => typeof k === "string") } : {}),
     ...(Array.isArray(v.topicsFailedKeys) ? { topicsFailedKeys: v.topicsFailedKeys.filter((k): k is string => typeof k === "string") } : {}),
+    ...(isRecord(v.topicsFailedReasons) ? { topicsFailedReasons: Object.fromEntries(Object.entries(v.topicsFailedReasons).filter((e): e is [string, string] => typeof e[1] === "string")) } : {}),
+    ...(isRecord(v.topicAttempts) ? { topicAttempts: Object.fromEntries(Object.entries(v.topicAttempts).filter((e): e is [string, number] => typeof e[1] === "number")) } : {}),
     ...(typeof v.complete === "boolean" ? { complete: v.complete } : {}),
     ...(typeof v.insightsStartedAt === "string" ? { insightsStartedAt: v.insightsStartedAt } : {}),
   };

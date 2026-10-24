@@ -54,7 +54,7 @@ describe("ClientContentMap", () => {
   it("renders all four tabs and switches between them", async () => {
     mockApi(apiResponse());
     render(<ClientContentMap />);
-    expect(await screen.findByText("Topic associations")).toBeInTheDocument();
+    expect(await screen.findByText("GEO - Topic associations")).toBeInTheDocument();
     expect(await screen.findByText("How the topics connect")).toBeInTheDocument();
     // No eyebrow line above the title any more; the update date sits by the actions.
     expect(screen.queryByText(/Internal link map/)).toBeNull();
@@ -92,7 +92,13 @@ describe("ClientContentMap", () => {
     fireEvent.click(screen.getByRole("button", { name: "Send to Blog Prompter" }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/content-map/recommendations/send", expect.anything()));
     expect(await screen.findByText(/Sent ·/)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Open brief" })).toHaveAttribute("href", "/admin/collections/blog-prompts/77");
+    fireEvent.click(screen.getByRole("button", { name: "Open brief" }));
+    const panel = screen.getByTestId("admin-doc-panel");
+    expect(panel.querySelector("iframe")).toHaveAttribute("src", "/admin/blog/prompter?brief=77&client=42");
+    expect(within(panel).getByText("Brief")).toBeInTheDocument();
+    expect(within(panel).getByRole("link", { name: "Open in new tab ↗" })).toHaveAttribute("target", "_blank");
+    fireEvent.click(within(panel).getByRole("button", { name: "Close" }));
+    expect(screen.queryByTestId("admin-doc-panel")).toBeNull();
   });
 
   it("accepting drafts the link edit, shows before/after, and Apply writes it", async () => {
@@ -315,7 +321,7 @@ describe("ClientContentMap · living layer", () => {
     expect(screen.getByTestId("why-articles")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
     fireEvent.click(screen.getByRole("tab", { name: "AI citations" }));
-    expect(screen.getByText(/Each week we ask ChatGPT, Perplexity, Gemini and Google's AI Overviews/)).toBeInTheDocument();
+    expect(screen.getByText(/We ask ChatGPT, Perplexity, Gemini and Google's AI Overviews/)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Check AI citations" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Add question" })).toBeNull();
     expect(screen.queryByRole("button", { name: /Remove question/ })).toBeNull();

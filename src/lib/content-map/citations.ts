@@ -12,6 +12,7 @@
  */
 
 import { after } from "next/server";
+import { SENTENCE_CASE_RULE } from "./sentence-case";
 import type { Payload } from "payload";
 import { authoritiesFromClient } from "./authorities";
 import { getGtCitations, startGtCitations, type CitationsRequest } from "./gt";
@@ -300,6 +301,7 @@ export function buildInsightsPrompt(input: {
 - "plan": it matches an already planned article → say what to cover and how to beat the cited pages.
 "cover" = points the cited pages cover that the article must cover. "beat" = concrete ways to do better than them (fresher data, local Australian specifics, clearer direct answer, original examples).
 
+${SENTENCE_CASE_RULE}
 Reply with JSON only:
 {"gaps":[{"questionId":"","title":"","why":"","priority":"high|medium|low","primaryKeyword":"","secondaryKeywords":[""],"outline":["H2 as a question"],"answerFirst":"40-60 words","entities":[""],"faqs":[""],"evidence":[""],"schema":["Article","FAQPage"],"linksTo":["page id"],"cover":[""],"beat":[""]}],"refresh":[{"questionId":"","nodeId":"page id","missing":[""],"why":""}],"plan":[{"planId":"","questionId":"","cover":[""],"beat":[""]}]}`;
   const user = [

@@ -6,6 +6,7 @@
  */
 
 import { createHash } from "crypto";
+import { SENTENCE_CASE_RULE, sentenceCase } from "./sentence-case";
 import type { Payload } from "payload";
 import { callContentMapModel, extractJson, type ContentMapLlmResult } from "./llm";
 import type { ContentMapSnapshot, SnapshotNode, SnapshotRecommendation } from "./types";
@@ -72,6 +73,7 @@ Each idea must:
 - sit inside the given topic authority, bridging to another authority only where that is natural;
 - be planned for citation: a direct 40-60 word answer first, question-style H2s, named entities, FAQs, and evidence worth citing.
 
+${SENTENCE_CASE_RULE}
 Reply with JSON only, no prose:
 {"ideas":[{"title":"","question":"","why":"one or two sentences: the gap it fills","priority":"high|medium|low","overlaps":["other authority key"],"primaryKeyword":"","secondaryKeywords":[""],"outline":["H2 as a question"],"answerFirst":"40-60 words","entities":[""],"faqs":[""],"evidence":[""],"schema":["Article","FAQPage"],"linksTo":["page id"],"linksFrom":["page id"]}]}`;
 
@@ -111,14 +113,14 @@ export function toRecommendation(raw: unknown, ctx: { topic: string; index: numb
     id: recommendationId(ctx.topic, title),
     topic: ctx.topic,
     overlaps: [...new Set(strList(r.overlaps, 3, 80).filter((k) => k !== ctx.topic && ctx.authorityKeys.has(k)))],
-    title,
-    question,
+    title: sentenceCase(title),
+    question: sentenceCase(question),
     why: str(r.why, 400),
     priority,
     score: Math.max(0.05, Math.round((PRIORITY_BASE[priority] - ctx.index * 0.03) * 100) / 100),
     primaryKeyword: str(r.primaryKeyword, 120) || undefined,
     secondaryKeywords: strList(r.secondaryKeywords, 8, 120),
-    outline: strList(r.outline, 10, 200),
+    outline: strList(r.outline, 10, 200).map(sentenceCase),
     geo: {
       answerFirst: str(r.answerFirst, 700),
       entities: strList(r.entities, 12, 120),

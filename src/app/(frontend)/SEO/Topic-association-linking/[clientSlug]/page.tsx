@@ -22,7 +22,7 @@ export const dynamic = "force-dynamic";
 export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
   const { clientSlug } = await params;
   // No lookup: the page decides who may see what.
-  return { title: `Topic association linking · ${decodeURIComponent(clientSlug).slice(0, 80)} · Optimise Digital`, robots: { index: false, follow: false } };
+  return { title: `GEO - Topic associations · ${decodeURIComponent(clientSlug).slice(0, 80)} · Optimise Digital`, robots: { index: false, follow: false } };
 }
 
 /**

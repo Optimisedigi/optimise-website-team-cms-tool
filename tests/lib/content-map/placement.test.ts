@@ -49,8 +49,38 @@ describe("parseResearchIdeas", () => {
     expect(d?.idea.evidence.map((e) => e.text)).toEqual(["400 searches a month", "1 competitor covers this"]);
     expect(d?.idea.evidence[1]?.domains).toEqual(["rival.com"]);
     const text = JSON.stringify(d?.brief);
-    expect(text).not.toContain("rival");
-    expect(text.toLowerCase()).not.toContain("pricing secrets");
+    // Brand labels are scrubbed; page titles are never treated as names.
+    expect(text.toLowerCase()).not.toContain("rival");
+  });
+
+  const page = (domain: string, title: string) => ({ url: `https://${domain}/p`, domain, title, headings: [], summary: "", keyword: "vietnam developer cost", position: 3, ok: true });
+
+  it("generic competitor titles and blog./trends. subdomains are not names: ideas are kept", () => {
+    const pages = [
+      page("www.digitalmarketing.com.au", "Digital Marketing"),
+      page("performance-marketing.io", "Performance Marketing"),
+      page("blog.hubspot.com", "Digital Marketing Cost Guide"),
+      page("trends.google.com", "Trends"),
+      page("brave.com", "Brave"),
+      page("digitaltransformation.com", "Digital transformation"),
+    ];
+    const terms = competitorTerms(pages, ["cost", "Cost"]);
+    expect(terms).toEqual(["hubspot"]);
+    const json = { ideas: [{ title: "Digital marketing cost for Vietnam developers", question: "What does digital marketing cost?", keywords: ["vietnam developer cost"], topic: "cost", fit: 0.8, placement: "new-article", ...brief }] };
+    const ideas = parseResearchIdeas(json, ctx, { ...input, competitors: pages }, terms);
+    expect(ideas.map((d) => d.idea.title)).toEqual(["Digital marketing cost for Vietnam developers"]);
+  });
+
+  it("a real brand label in a title is scrubbed, not the idea dropped", () => {
+    const pages = [page("www.semrush.com", "Developer cost report")];
+    const terms = competitorTerms(pages);
+    expect(terms).toEqual(["semrush"]);
+    const json = { ideas: [{ title: "Vietnam developer cost: what Semrush data shows", question: "What does SEMrush.com say about cost?", keywords: ["vietnam developer cost"], topic: "cost", fit: 0.8, placement: "new-article", ...brief }] };
+    const [d] = parseResearchIdeas(json, ctx, { ...input, competitors: pages }, terms);
+    expect(d?.idea.title).toBe("Vietnam developer cost: what data shows");
+    expect(d?.idea.question.toLowerCase()).not.toContain("semrush");
+    // Only the team-only evidence domains may name it; the brief never does.
+    expect(JSON.stringify(d?.brief).toLowerCase()).not.toContain("semrush");
   });
 });
 

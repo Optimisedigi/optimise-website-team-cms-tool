@@ -198,6 +198,8 @@ function cleanSnapshot(snap: ContentMapSnapshot, dismissed: ReadonlySet<string>)
       ...(n.fit !== undefined ? { fit: n.fit } : {}),
       ...(n.overlaps ? { overlaps: n.overlaps.map((o) => ({ k: o.k, s: o.s })) } : {}),
       ...(n.words !== undefined ? { words: n.words } : {}),
+      // The client's own pages in a group: fine for clients.
+      ...(n.members ? { members: n.members.map((m) => ({ id: m.id, t: m.t, in: m.in, from: m.from.map((f) => ({ s: f.s, w: f.w })) })) } : {}),
     })),
     links: snap.links.map((l) => ({ s: l.s, t: l.t, w: l.w })),
     opportunities: snap.opportunities

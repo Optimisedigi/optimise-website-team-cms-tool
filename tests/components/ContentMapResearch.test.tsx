@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, type Mock, vi } from "vitest";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup as cleanupAll, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import sample from "../fixtures/content-map-research-sample.json";
 import ContentMapPage from "@/components/content-map/ContentMapPage";
 import type { ContentMapApiResponse, ResearchView } from "@/lib/content-map/types";
@@ -97,6 +97,29 @@ describe("Content Map · research layers", () => {
     expect(screen.getByTestId("pair-demand-cost-vietnam")).toHaveTextContent("1.3k/mo");
   });
 
+  it("Questions and Search Console show lines on the overview, and say when there is nothing", async () => {
+    renderTeam();
+    await screen.findByTestId("research-layers");
+    toggle("Questions");
+    expect(screen.getByTestId("questions-vietnam")).toHaveTextContent("24 questions");
+    toggle("Questions");
+    toggle("Search Console");
+    expect(screen.getByTestId("gsc-vietnam")).toHaveTextContent("40k impressions · pos 16");
+    expect(screen.getByTestId("unanswered-cost")).toHaveTextContent("1 unanswered");
+    toggle("Search Console");
+    const empty = team();
+    const r = empty.research as ResearchView;
+    for (const t of Object.values(r.topics)) { t.questions = 0; t.gsc = null; }
+    r.gscQueries = [];
+    cleanupAll();
+    renderTeam(empty);
+    await screen.findByTestId("research-layers");
+    toggle("Questions");
+    toggle("Search Console");
+    expect(screen.getByTestId("layer-empty-notes")).toHaveTextContent("Questions: no questions for these topics yet");
+    expect(screen.getByTestId("layer-empty-notes")).toHaveTextContent("Search Console: no data for these topics yet");
+  });
+
   it("Search Console switch is disabled when not connected", async () => {
     const s = team();
     (s.research as ResearchView).gscConnected = false;
@@ -145,8 +168,10 @@ describe("Content Map · research layers", () => {
     fireEvent.click(within(list).getByRole("button", { name: "Restore" }));
     await waitFor(() => expect(bodyOf("/api/content-map/research/decide")).toEqual({ clientId: "42", id: "rs6", action: "restore" }));
     const ip = screen.getByTestId("in-progress");
-    expect(within(ip).getByRole("link", { name: "10 tips for working with offshore developers" })).toHaveAttribute("href", "/admin/collections/blog-prompts/301");
+    expect(within(ip).getByRole("link", { name: "10 tips for working with offshore developers" })).toHaveAttribute("href", "/admin/blog/prompter?brief=301&client=42");
     expect(within(ip).getByRole("link", { name: "Our 2026 pricing explained" })).toHaveAttribute("href", "/admin/collections/blog-posts/512");
+    fireEvent.click(within(ip).getByRole("link", { name: "Our 2026 pricing explained" }));
+    expect(screen.getByTestId("admin-doc-panel").querySelector("iframe")).toHaveAttribute("src", "/admin/collections/blog-posts/512");
   });
 
   it("Approach shows demand per topic, where demand is and in progress", async () => {

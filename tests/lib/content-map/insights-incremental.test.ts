@@ -142,6 +142,46 @@ describe("research insights self-heal", () => {
   });
 });
 
+describe("research insights: failed topics retry", () => {
+  it("keeps the run open while a failed topic has attempts left, then completes after 3 with the reason recorded", async () => {
+    const { payload, stored, doc } = setup();
+    const call = vi.fn(async (_p: unknown, i: { user: string }) => {
+      const key = topicOf(i.user);
+      // echo's ideas all lack evidence: nothing kept.
+      return { text: key === "echo" ? JSON.stringify({ ideas: [{ title: "An idea with nothing behind it", question: "Why?", keywords: ["nope"], topic: "echo", fit: 0.5, placement: "new-article", ...brief }] }) : reply(key), model: "m" };
+    });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    await writeResearchInsights(payload as never, doc(), { call, now: () => NOW });
+    expect(stored()).toMatchObject({ complete: false, topicsFailedKeys: ["echo"], topicAttempts: { echo: 1 } });
+    expect(stored()?.topicsFailedReasons?.echo).toContain("1 no evidence");
+    expect(warn.mock.calls.some((c) => String(c[0]).includes("noEvidence=1"))).toBe(true);
+    expect(stored()?.ideas.filter((i) => i.status === "in-plan")).toHaveLength(5);
+    call.mockClear();
+    await writeResearchInsights(payload as never, doc(), { call, now: () => NOW });
+    expect(call.mock.calls.map((c) => topicOf(c[1].user))).toEqual(["echo"]);
+    expect(stored()).toMatchObject({ complete: false, topicAttempts: { echo: 2 } });
+    await writeResearchInsights(payload as never, doc(), { call, now: () => NOW });
+    expect(stored()).toMatchObject({ complete: true, topicsFailedKeys: ["echo"], topicAttempts: { echo: 3 } });
+    expect(stored()?.ideas.filter((i) => i.status === "in-plan")).toHaveLength(5);
+    expect(await healResearchInsights(payload as never, doc(), { now: () => NOW + 60 * 60_000 })).toBe(false);
+    warn.mockRestore();
+  });
+
+  it("an old-format doc (complete, failures, no topicAttempts) self-heals and retries only the failed topics", async () => {
+    afterMock.mockReset();
+    const { payload, stored, doc } = setup({
+      model: "m", generatedAt: "x", gscId: null, ideas: [], briefs: {}, inProgress: [], topicsFailed: 5,
+      topicsDone: ["alpha"], topicsFailedKeys: KEYS.slice(1), complete: true, insightsStartedAt: "2026-10-23T08:00:00.000Z",
+    });
+    expect(await healResearchInsights(payload as never, doc(), { now: () => NOW })).toBe(true);
+    const call = vi.fn(async (_p: unknown, i: { user: string }) => ({ text: reply(topicOf(i.user)), model: "m" }));
+    await writeResearchInsights(payload as never, doc(), { call, now: () => NOW });
+    expect(call.mock.calls.map((c) => topicOf(c[1].user)).sort()).toEqual(KEYS.slice(1));
+    expect(stored()).toMatchObject({ complete: true, topicsFailedKeys: [] });
+    expect(stored()?.topicAttempts?.bravo).toBe(2);
+  });
+});
+
 describe("citation insights: incremental + self-heal", () => {
   const citationResult = (): CitationsResult => ({
     version: 1, clientId: "7", siteUrl: "https://a.com", generatedAt: "2026-10-23T08:00:00.000Z", engines: ["chatgpt"],

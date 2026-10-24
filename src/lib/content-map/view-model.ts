@@ -481,3 +481,46 @@ export function demandByTopic(research: Pick<ResearchView, "topics">, names: Rea
     .map((t) => ({ k: t.key, name: names[t.key] ?? t.key, volume: t.volume, covered: t.covered }))
     .sort((a, b) => b.volume - a.volume || a.k.localeCompare(b.k));
 }
+
+export interface OverviewLayerPart { key: "questions" | "gsc" | "unanswered"; text: string }
+
+/** Overview lines under a topic bubble for the Questions and Search Console switches. */
+export function overviewLayerParts(k: string, research: Pick<ResearchView, "topics" | "gscQueries">, layers: ReadonlySet<ResearchLayer>): OverviewLayerPart[] {
+  const t = research.topics[k];
+  const out: OverviewLayerPart[] = [];
+  if (layers.has("questions") && t?.questions) out.push({ key: "questions", text: `${fmtCount(t.questions)} ${t.questions === 1 ? "question" : "questions"}` });
+  if (layers.has("gsc")) {
+    if (t?.gsc && t.gsc.impressions > 0) out.push({ key: "gsc", text: `${fmtVolume(t.gsc.impressions)} impressions · pos ${Math.round(t.gsc.position * 10) / 10}` });
+    const unanswered = research.gscQueries.filter((q) => q.kind === "unanswered" && q.topic === k).length;
+    if (unanswered) out.push({ key: "unanswered", text: `${unanswered} unanswered` });
+  }
+  return out;
+}
+
+/**
+ * Muted notes for switches that are on but have nothing to show in the
+ * current view (overview: topic === null), so a switch never looks dead.
+ */
+export function emptyLayerNotes(
+  research: Pick<ResearchView, "topics" | "gscQueries" | "gscPages" | "ideas">,
+  layers: ReadonlySet<ResearchLayer>,
+  view: { topic: string | null; topicKeys: readonly string[]; nodeIds?: ReadonlySet<string> },
+): string[] {
+  const notes: string[] = [];
+  const keys = view.topic ? [view.topic] : view.topicKeys;
+  if (layers.has("questions")) {
+    if (view.topic) {
+      const any = research.ideas.some((i) => i.topic === view.topic && i.status !== "dismissed" && i.placement !== "new-topic" && i.layers.includes("questions"));
+      if (!any) notes.push("Questions: no research ideas from questions in this topic yet");
+    } else if (!keys.some((k) => (research.topics[k]?.questions ?? 0) > 0)) notes.push("Questions: no questions for these topics yet");
+  }
+  if (layers.has("gsc")) {
+    const unanswered = research.gscQueries.some((q) => q.kind === "unanswered" && q.topic !== null && keys.includes(q.topic));
+    if (view.topic) {
+      const pages = research.gscPages.some((p) => view.nodeIds?.has(p.nodeId));
+      const cannibal = research.gscQueries.some((q) => q.kind === "cannibal" && q.pages.some((id) => view.nodeIds?.has(id)));
+      if (!pages && !unanswered && !cannibal) notes.push("Search Console: no data for this topic yet");
+    } else if (!unanswered && !keys.some((k) => (research.topics[k]?.gsc?.impressions ?? 0) > 0)) notes.push("Search Console: no data for these topics yet");
+  }
+  return notes;
+}

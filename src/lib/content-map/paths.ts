@@ -131,3 +131,10 @@ export function normaliseSiteUrl(raw: unknown): string {
 export function clientSiteUrl(client: { websiteUrl?: unknown } | Record<string, unknown> | null | undefined): string {
   return normaliseSiteUrl((client as { websiteUrl?: unknown } | null | undefined)?.websiteUrl);
 }
+
+/** Blog Prompter link that opens one brief (the Blog Prompter selects the client and the brief). */
+export function briefHref(briefId: string, clientId?: string | null): string {
+  const q = new URLSearchParams({ brief: briefId });
+  if (clientId) q.set("client", clientId);
+  return `/admin/blog/prompter?${q.toString()}`;
+}
