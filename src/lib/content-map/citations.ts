@@ -17,6 +17,7 @@ import { authoritiesFromClient } from "./authorities";
 import { getGtCitations, startGtCitations, type CitationsRequest } from "./gt";
 import { normTitle, toRecommendation } from "./ideas";
 import { callContentMapModel, extractJson, type ContentMapLlmResult } from "./llm";
+import { handOffInsights } from "./handoff";
 import { buildPlan, hostOf, parseCitationsResult, parseInsights, questionEvidence, type CitationInsights } from "./plan";
 import { ensureQuestions } from "./questions";
 import { relId } from "./snapshots";
@@ -239,7 +240,8 @@ export async function healCitationInsights(payload: Payload, doc: Doc | null | u
   const stamp = new Date(now()).toISOString();
   const marked: CitationInsights = { ...(parseInsights(doc.insights) ?? { model: "", generatedAt: "", gaps: [], refresh: [], notes: {}, topicsFailed: 0, topicsDone: [], complete: false }), insightsStartedAt: stamp };
   const updated = (await payload.update({ collection: "content-map-citations", id: doc.id as number, data: { insights: marked } as never, overrideAccess: true })) as unknown as Doc;
-  scheduleInsights(payload, updated, deps);
+  // Called from page loads (30 s): hand the job to the 300 s route instead of running it here.
+  handOffInsights("citations", String(updated.id), () => scheduleInsights(payload, updated, deps));
   return true;
 }
 
@@ -268,7 +270,7 @@ export async function pollStaleCitationRun(payload: Payload, run: Doc, now: () =
     { clientId: relId(run.client), runId: String(run.runId), status: s.status, phase: s.phase, error: s.error, result: s.status === "completed" ? s.result : undefined },
     now,
   );
-  if (needsInsights(out.doc)) scheduleInsights(payload, out.doc);
+  if (needsInsights(out.doc)) handOffInsights("citations", String(out.doc.id), () => scheduleInsights(payload, out.doc));
   return out.doc;
 }
 

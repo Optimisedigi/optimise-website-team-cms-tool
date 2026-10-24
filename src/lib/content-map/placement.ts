@@ -23,6 +23,7 @@ import { authoritiesFromClient } from "./authorities";
 import { buildGscSignals, latestGsc, maybePullWeeklyGsc, pullGsc, type GscPullResult } from "./gsc";
 import { latestCompletedDoc, normTitle, toRecommendation } from "./ideas";
 import { callContentMapModel, extractJson, type ContentMapLlmResult } from "./llm";
+import { handOffInsights } from "./handoff";
 import { buildPlan } from "./plan";
 import {
   buildResearchView,
@@ -795,7 +796,8 @@ export async function healResearchInsights(payload: Payload, doc: Doc | null, de
     ? { ...insights, insightsStartedAt: new Date(now()).toISOString() }
     : { model: "", generatedAt: "", gscId: gsc ? String(gsc.id) : null, ideas: [], briefs: {}, inProgress: [], topicsFailed: 0, topicsDone: [], topicsFailedKeys: [], complete: false, insightsStartedAt: new Date(now()).toISOString() };
   const updated = (await payload.update({ collection: "content-map-research", id: doc.id as number, data: { insights: marked } as never, overrideAccess: true })) as unknown as Doc;
-  scheduleResearchInsights(payload, updated, deps);
+  // Called from page loads (30 s): hand the job to the 300 s route instead of running it here.
+  handOffInsights("research", String(updated.id), () => scheduleResearchInsights(payload, updated, deps));
   return true;
 }
 
@@ -879,7 +881,7 @@ export async function loadResearchState(
     const polled = await pollStaleResearchRun(payload, latest, now);
     if (polled.status === "completed" && polled.id !== done?.id) {
       done = polled;
-      if (needsResearchInsights(polled, gsc)) scheduleResearchInsights(payload, polled);
+      if (needsResearchInsights(polled, gsc)) handOffInsights("research", String(polled.id), () => scheduleResearchInsights(payload, polled));
     }
     latest = polled;
   }
