@@ -1,65 +1,68 @@
 /**
- * Content Map's model access. Runs on the CMS's subscription (OAuth) models
- * so link edits and Write next ideas never bill an API key by default:
+ * Content Map's model access. Follows the models the CMS has active instead of
+ * a fixed list, and only ever uses subscription (OAuth) logins, so Content Map
+ * never bills an API key:
  *
- *   OptiMate settings → "Content Map model" (explicit choice, used first, but
- *   only when that model also runs on a subscription login; API-key models are
- *   ignored)
- *   then Kimi K3 (Kimi OAuth) → Claude Sonnet (only when Claude OAuth is
- *   connected; otherwise the resolver would use ANTHROPIC_API_KEY) → Grok
- *   (SuperGrok OAuth) → GPT via Codex (ChatGPT OAuth).
+ *   1. OptiMate settings → "Content Map model", when set.
+ *   2. OptiMate settings → "Default chat model" (the CMS's main model).
+ *   3. Backups: the other models in the CMS model picker, at most one per
+ *      provider, in the picker's order.
+ *
+ * A model is used only when its provider has a stored OAuth login that isn't
+ * switched to "force fallback" (which would mean an API key). Models from a
+ * provider without an active login are skipped.
  */
 
 import type { Payload } from "payload";
 import { callLLM } from "@/lib/agents/_shared/llm";
-import { getCredential } from "@/lib/agents/_shared/llm/auth/store";
-import { MODEL_REGISTRY, type CanonicalModelName } from "@/lib/agents/_shared/llm/registry";
+import { getCredential, isForceFallback } from "@/lib/agents/_shared/llm/auth/store";
+import { CHAT_PICKER_MODELS, MODEL_REGISTRY, type CanonicalModelName } from "@/lib/agents/_shared/llm/registry";
 import { getOptiMateDefaultModels } from "@/lib/agents/_shared/optimate-default-models";
-
-/** Subscription-only models, in fallback order. */
-export const CONTENT_MAP_OAUTH_CHAIN: CanonicalModelName[] = ["kimi-k3", "claude-sonnet-5.5", "grok-4.6", "gpt-5.6-terra"];
-
-/** Providers whose only credential is OAuth (no billed API-key path in the resolver). */
-const OAUTH_ONLY_PROVIDERS = new Set(["kimi-coding", "xai-grok", "openai-codex"]);
 
 export async function contentMapModelChain(
   payload: Payload,
   deps: {
     settings?: typeof getOptiMateDefaultModels;
     credential?: typeof getCredential;
+    forceFallback?: typeof isForceFallback;
   } = {},
 ): Promise<CanonicalModelName[]> {
   const settings = await (deps.settings ?? getOptiMateDefaultModels)(payload);
   const credential = deps.credential ?? getCredential;
-  const chain: CanonicalModelName[] = [];
-  for (const model of CONTENT_MAP_OAUTH_CHAIN) {
-    const provider = MODEL_REGISTRY[model].provider;
-    if (OAUTH_ONLY_PROVIDERS.has(provider)) {
-      chain.push(model);
-      continue;
+  const forceFallback = deps.forceFallback ?? isForceFallback;
+  const activeByProvider = new Map<string, boolean>();
+  const isActive = async (model: CanonicalModelName): Promise<boolean> => {
+    const provider = MODEL_REGISTRY[model]?.provider;
+    if (!provider) return false;
+    if (!activeByProvider.has(provider)) {
+      const [cred, forced] = await Promise.all([
+        Promise.resolve().then(() => credential(provider)).catch(() => null),
+        Promise.resolve().then(() => forceFallback(provider)).catch(() => false),
+      ]);
+      activeByProvider.set(provider, Boolean(cred && cred.kind === "oauth" && !forced));
     }
-    // Anthropic falls back to ANTHROPIC_API_KEY when OAuth is not connected, so
-    // only include Claude when a stored OAuth credential exists.
-    const cred = await credential(provider).catch(() => null);
-    if (cred && cred.kind === "oauth") chain.push(model);
-  }
-  // The OptiMate "Content Map model" setting is honoured only when it runs on a
-  // subscription login too (an OAuth-only provider, or a stored OAuth
-  // credential). An API-key model picked there is ignored, so Content Map never
-  // bills an API key.
+    return activeByProvider.get(provider) === true;
+  };
+
+  const chain: CanonicalModelName[] = [];
   const chosen = settings.contentMapModel;
-  if (!chosen || !MODEL_REGISTRY[chosen]) return chain;
-  const chosenProvider = MODEL_REGISTRY[chosen].provider;
-  let chosenIsOAuth = OAUTH_ONLY_PROVIDERS.has(chosenProvider);
-  if (!chosenIsOAuth) {
-    const cred = await credential(chosenProvider).catch(() => null);
-    chosenIsOAuth = Boolean(cred && cred.kind === "oauth");
+  if (chosen) {
+    if (await isActive(chosen)) chain.push(chosen);
+    else console.warn(`[content-map] ignoring Content Map model "${chosen}": its provider has no active subscription (OAuth) login`);
   }
-  if (!chosenIsOAuth) {
-    console.warn(`[content-map] ignoring Content Map model "${chosen}": it isn't on a subscription (OAuth) login`);
-    return chain;
+  const main = settings.defaultChatModel;
+  if (main && !chain.includes(main) && (await isActive(main))) chain.push(main);
+  // Backups from other providers, so one provider's outage or rate limit doesn't stop the run.
+  const providers = new Set(chain.map((m) => MODEL_REGISTRY[m].provider));
+  for (const { canonical } of CHAT_PICKER_MODELS) {
+    const provider = MODEL_REGISTRY[canonical]?.provider;
+    if (!provider || providers.has(provider) || chain.includes(canonical)) continue;
+    if (await isActive(canonical)) {
+      chain.push(canonical);
+      providers.add(provider);
+    }
   }
-  return [chosen, ...chain.filter((m) => m !== chosen)];
+  return chain;
 }
 
 export interface ContentMapLlmResult {
@@ -74,7 +77,7 @@ export async function callContentMapModel(
   deps: { call?: typeof callLLM; chain?: CanonicalModelName[] } = {},
 ): Promise<ContentMapLlmResult> {
   const chain = deps.chain ?? (await contentMapModelChain(payload));
-  if (!chain.length) throw new Error("No Content Map model is available");
+  if (!chain.length) throw new Error("No Content Map model is available: connect a subscription (OAuth) model login in the CMS");
   const [model, ...fallbackModels] = chain;
   const response = await (deps.call ?? callLLM)({
     model,
@@ -83,7 +86,7 @@ export async function callContentMapModel(
     messages: [{ role: "user", content: [{ type: "text", text: input.user }] }],
     maxTokens: input.maxTokens ?? 4000,
     temperature: 0.3,
-    // Kimi K3 only serves K3 with reasoning on; low keeps it quick for JSON tasks.
+    // Light reasoning keeps these JSON tasks quick (and is still "on" for models that need it).
     reasoningMode: "low",
     timeoutMs: input.timeoutMs ?? 90_000,
   });

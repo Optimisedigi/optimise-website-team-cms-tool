@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { Payload } from "payload";
 
 vi.mock("@/lib/agents/_shared/llm", () => ({ callLLM: vi.fn() }));
-vi.mock("@/lib/agents/_shared/llm/auth/store", () => ({ getCredential: vi.fn() }));
+vi.mock("@/lib/agents/_shared/llm/auth/store", () => ({ getCredential: vi.fn(), isForceFallback: vi.fn(async () => false) }));
 vi.mock("@/lib/agents/_shared/optimate-default-models", () => ({ getOptiMateDefaultModels: vi.fn() }));
 
 import sampleJson from "../../fixtures/content-map-snapshot-sample.json";
@@ -15,44 +15,48 @@ const sample = sampleJson as unknown as ContentMapSnapshot;
 const P = {} as Payload;
 
 describe("Content Map model chain", () => {
-  it("uses only subscription models by default, and Claude only when its OAuth is connected", async () => {
-    const settings = vi.fn(async () => ({}) as never);
-    const none = vi.fn(async () => null);
-    expect(await contentMapModelChain(P, { settings, credential: none })).toEqual(["kimi-k3", "grok-4.6", "gpt-5.6-terra"]);
-    const apiKeyOnly = vi.fn(async () => ({ kind: "api-key" }) as never);
-    expect(await contentMapModelChain(P, { settings, credential: apiKeyOnly })).not.toContain("claude-sonnet-5.5");
-    const oauth = vi.fn(async () => ({ kind: "oauth" }) as never);
-    expect(await contentMapModelChain(P, { settings, credential: oauth })).toEqual(["kimi-k3", "claude-sonnet-5.5", "grok-4.6", "gpt-5.6-terra"]);
+  // Production today: Claude, ChatGPT (Codex), Grok and Kimi OAuth logins; default chat model Claude Sonnet 5.5.
+  const logins = (...providers: string[]) => vi.fn(async (p: string) => (providers.includes(p) ? ({ kind: "oauth" } as never) : null));
+  const prod = logins("anthropic", "openai-codex", "xai-grok", "kimi-coding");
+  const noForce = vi.fn(async () => false);
+
+  it("starts with the CMS default chat model, then one backup per other connected provider (picker order)", async () => {
+    const settings = vi.fn(async () => ({ defaultChatModel: "claude-sonnet-5.5" }) as never);
+    expect(await contentMapModelChain(P, { settings, credential: prod, forceFallback: noForce })).toEqual(["claude-sonnet-5.5", "kimi-k3", "grok-4.6"]);
   });
 
-  it("puts the model chosen in OptiMate settings first when it's on a subscription login", async () => {
-    const settings = vi.fn(async () => ({ contentMapModel: "claude-opus-5.5" }) as never);
-    const chain = await contentMapModelChain(P, { settings, credential: vi.fn(async () => ({ kind: "oauth" }) as never) });
-    expect(chain[0]).toBe("claude-opus-5.5");
-    expect(chain.slice(1)).toEqual(["kimi-k3", "claude-sonnet-5.5", "grok-4.6", "gpt-5.6-terra"]);
+  it("follows the CMS settings, not a fixed list: a different default comes first", async () => {
+    const settings = vi.fn(async () => ({ defaultChatModel: "grok-4.6" }) as never);
+    expect(await contentMapModelChain(P, { settings, credential: prod, forceFallback: noForce })).toEqual(["grok-4.6", "claude-sonnet-5.5", "kimi-k3"]);
   });
 
-  it("ignores a chosen model that would bill an API key", async () => {
-    const none = vi.fn(async () => null);
-    for (const model of ["kimi-k2.6", "minimax-m3", "claude-opus-5.5"]) {
-      const settings = vi.fn(async () => ({ contentMapModel: model }) as never);
-      expect(await contentMapModelChain(P, { settings, credential: none })).toEqual(["kimi-k3", "grok-4.6", "gpt-5.6-terra"]);
-    }
-    const apiKeyOnly = vi.fn(async () => ({ kind: "api-key" }) as never);
-    const settings = vi.fn(async () => ({ contentMapModel: "claude-opus-5.5" }) as never);
-    expect((await contentMapModelChain(P, { settings, credential: apiKeyOnly }))[0]).toBe("kimi-k3");
+  it("puts the Content Map model setting first when its provider has an active login", async () => {
+    const settings = vi.fn(async () => ({ defaultChatModel: "claude-sonnet-5.5", contentMapModel: "claude-opus-5.5" }) as never);
+    expect(await contentMapModelChain(P, { settings, credential: prod, forceFallback: noForce })).toEqual(["claude-opus-5.5", "claude-sonnet-5.5", "kimi-k3", "grok-4.6"]);
   });
 
-  it("uses a chosen OAuth-only model first even without a stored credential check", async () => {
-    const settings = vi.fn(async () => ({ contentMapModel: "grok-4.6" }) as never);
-    expect(await contentMapModelChain(P, { settings, credential: vi.fn(async () => null) })).toEqual(["grok-4.6", "kimi-k3", "gpt-5.6-terra"]);
+  it("skips models whose provider has no active subscription login (no API-key billing)", async () => {
+    // API-key-only picker models (GPT-6, Grok 4.7, MiniMax, MiMo) never appear.
+    const settings = vi.fn(async () => ({ defaultChatModel: "gpt-6-sol", contentMapModel: "minimax-m3" }) as never);
+    expect(await contentMapModelChain(P, { settings, credential: prod, forceFallback: noForce })).toEqual(["claude-sonnet-5.5", "kimi-k3", "grok-4.6"]);
+    // Claude stored as an API key, or switched to force fallback → not used.
+    const apiKeyClaude = vi.fn(async (p: string) => (p === "anthropic" ? ({ kind: "api-key" } as never) : p === "xai-grok" ? ({ kind: "oauth" } as never) : null));
+    const def = vi.fn(async () => ({ defaultChatModel: "claude-sonnet-5.5" }) as never);
+    expect(await contentMapModelChain(P, { settings: def, credential: apiKeyClaude, forceFallback: noForce })).toEqual(["grok-4.6"]);
+    const forced = vi.fn(async (p: string) => p === "anthropic");
+    expect(await contentMapModelChain(P, { settings: def, credential: prod, forceFallback: forced })).toEqual(["kimi-k3", "grok-4.6"]);
+  });
+
+  it("returns nothing when no subscription login is connected", async () => {
+    const settings = vi.fn(async () => ({ defaultChatModel: "claude-sonnet-5.5" }) as never);
+    expect(await contentMapModelChain(P, { settings, credential: vi.fn(async () => null), forceFallback: noForce })).toEqual([]);
   });
 
   it("calls the first model with the rest as fallbacks and returns its text", async () => {
     const call = vi.fn(async () => ({ message: { role: "assistant", content: [{ type: "text", text: ' {"a":1} ' }] }, model: "grok-4.6" }) as never);
-    const res = await callContentMapModel(P, { system: "s", user: "u" }, { call, chain: ["kimi-k3", "grok-4.6"] });
+    const res = await callContentMapModel(P, { system: "s", user: "u" }, { call, chain: ["claude-sonnet-5.5", "grok-4.6"] });
     expect(res).toEqual({ text: '{"a":1}', model: "grok-4.6" });
-    expect(call).toHaveBeenCalledWith(expect.objectContaining({ model: "kimi-k3", fallbackModels: ["grok-4.6"], system: "s", reasoningMode: "low" }));
+    expect(call).toHaveBeenCalledWith(expect.objectContaining({ model: "claude-sonnet-5.5", fallbackModels: ["grok-4.6"], system: "s", reasoningMode: "low" }));
   });
 
   it("pulls JSON out of fenced or chatty replies", () => {

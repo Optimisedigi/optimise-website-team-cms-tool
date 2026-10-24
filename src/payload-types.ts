@@ -17029,7 +17029,7 @@ export interface OptimateSetting {
    */
   blogImageGenerationModel: string;
   /**
-   * Optional. Model used first for every Content Map AI step (link edits, Write next ideas, tracked questions, AI-citation and research analysis). Only subscription (OAuth) models are used: a model that would bill an API key is ignored. Leave blank for Kimi K3, then Claude, Grok and GPT via OAuth.
+   * Optional. Model used first for every Content Map AI step (link edits, Write next ideas, tracked questions, AI-citation and research analysis). Leave blank to use the Default chat model above. Other connected subscription models are used as backups. Only subscription (OAuth) logins are used: a model whose provider has no active login is skipped.
    */
   contentMapModel?:
     | (
